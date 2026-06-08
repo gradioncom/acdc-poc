@@ -6,6 +6,10 @@
 - **Identical "green" bar (both loops):** `npm test` passes AND SonarQube reports
   no new issues of severity Medium or above on changed code AND (Loop 2 only) the
   quality gate is Passed and no unresolved Gitar findings of Medium+ remain.
+  *"Medium+" refers to the MQR / Clean-Code severity scale (High/Medium/Low). If
+  the Sonar project is in the legacy severity mode (Blocker/Critical/Major/Minor/
+  Info), map "Medium+" to "Major and above" and apply that mapping consistently
+  across all 4 runs.*
 - **Run order (fixed, recorded):** A1 → A2 → B1 → B2. Within each task, Loop 1
   runs before Loop 2 so the pre-commit approach gets no second-mover advantage.
 - **Fresh sessions:** each run is a brand-new Claude Code session with no memory
