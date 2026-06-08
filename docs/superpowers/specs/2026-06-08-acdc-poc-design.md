@@ -44,13 +44,38 @@ comparison scorecard.
 
 | Stage | Tool(s) | Role |
 |-------|---------|------|
-| **Guide** | `CLAUDE.md` + coding-standards doc | Inject repo context/standards into the agent, **held constant across both loops** |
+| **Guide** | `CLAUDE.md` + coding-standards doc; SonarQube MCP `get_guidelines` (Context Augmentation) | Inject repo context/standards into the agent, **held constant across both loops** |
 | **Generate** | Claude Code | Write the feature / bug fix |
-| **Verify** | SonarQube Cloud (deterministic) + Gitar (agentic AI review) | Analyze the change |
+| **Verify** | SonarQube MCP `run_advanced_code_analysis` (Agentic Analysis, pre-PR); SonarQube Cloud PR analysis + Gitar (post-PR) | Analyze the change |
 | **Solve** | Claude Code + Gitar remediation / SonarQube AI CodeFix | Fix what Verify surfaces, then re-verify |
 
 Gitar is the **canonical** AI reviewer for this PoC (it is Sonar's own AC/DC
 review/remediation product). CodeRabbit, if used, is a separate side experiment.
+
+### Reference implementation and tooling
+
+Sonar ships an official reference repo,
+[`SonarSource/getting-started-agentic-analysis-claude-code`](https://github.com/SonarSource/getting-started-agentic-analysis-claude-code),
+designed for reuse. We adopt its `CLAUDE.md` templates and `sonar-scan` /
+`sonar-verify` Claude Code skills (adapted to TypeScript) rather than authoring
+Guide artifacts from scratch. The pre-PR self-verify mechanism is the
+[SonarQube MCP server](https://github.com/SonarSource/sonarqube-mcp-server)
+(`mcp/sonarqube` Docker image) added to Claude Code, which exposes the
+Context Augmentation and Agentic Analysis tools above. Loop 1 corresponds to
+Sonar's "Run" (Phase 3) autonomous Guide→Generate→Verify loop.
+
+### Prerequisites
+
+- **SonarQube Cloud Team (or Enterprise) plan.** Agentic Analysis and Context
+  Augmentation are Beta and unavailable on the free tier, including for public
+  projects. (Plan/billing logistics are handled separately by the project
+  owner and are out of scope for this spec.)
+- A **user token** (not an organization-scoped token) for the MCP server to
+  submit analysis.
+- A **prior CI analysis** of the baseline repo (via GitHub Actions) so the
+  engine has the dependency/type/build context Agentic Analysis relies on.
+- The SonarQube MCP server configured in Claude Code with the toolsets that
+  enable project browsing, Agentic Analysis, and Context Augmentation.
 
 ## Subject codebase — the baseline app
 
@@ -85,19 +110,24 @@ can judge whether each loop converges on it.
 
 ### Shared setup — the Guide stage (done once)
 - Scaffold the baseline app; commit and tag it.
-- Author a **`CLAUDE.md`** plus a short coding-standards doc encoding the app's
-  conventions, architecture notes, and constraints. This is the Guide context
-  for **both** loops, so Guide is held constant and only the loop *shape* varies.
-- Connect a SonarQube Cloud project to the repo with a fixed quality
-  profile/ruleset (identical for every run).
+- Adopt the reference repo's **`CLAUDE.md`** template + `sonar-scan` /
+  `sonar-verify` skills (adapted to TypeScript), encoding the app's conventions,
+  architecture notes, and constraints. This is the Guide context for **both**
+  loops, so Guide is held constant and only the loop *shape* varies.
+- Connect a SonarQube Cloud project (Team/Enterprise) to the repo with a fixed
+  quality profile/ruleset (identical for every run).
+- Configure the **SonarQube MCP server** in Claude Code (user token; toolsets
+  for project browsing + Agentic Analysis + Context Augmentation).
+- Run a **prior CI analysis** via GitHub Actions to seed engine context.
 - Install Gitar on the repo.
 - Confirm the test suite runs in GitHub Actions.
 
 ### Loop 1 — Pre-commit self-verify (the AC/DC ideal)
 1. **Guide** — Claude Code reads `CLAUDE.md` + the task.
 2. **Generate** — implements the task on a branch.
-3. **Verify (self)** — the agent runs SonarQube analysis on its *own* branch
-   *before* opening any PR, plus the test suite.
+3. **Verify (self)** — the agent calls `run_advanced_code_analysis` (Agentic
+   Analysis) on its *own* changed files *before* opening any PR, plus the test
+   suite.
 4. **Solve** — the agent fixes whatever Verify surfaced; repeat steps 3↔4 until
    clean.
 5. Opens the PR **only when green**. Record what was already clean at PR time.
@@ -135,11 +165,11 @@ mechanics and yield a narrative + table, not statistical superiority.
 
 ## Risks & open items (to resolve during planning)
 
-1. **Pre-commit self-verify mechanism (biggest unknown).** Confirm how Claude
-   Code calls SonarQube on an un-PR'd branch — via the Sonar MCP server /
-   SonarQube Agentic Analysis, or via a local/CI branch scan with
-   `sonar-scanner`. The chosen mechanism must let the agent read results back
-   and act on them within a session.
+1. **Pre-commit self-verify mechanism — resolved.** Claude Code calls the
+   SonarQube MCP server's `run_advanced_code_analysis` (Agentic Analysis) on its
+   own changed files before opening a PR, reading results back within the
+   session. Remaining planning task: confirm the exact MCP toolset configuration
+   and that analysis returns full (not "basic only") results for TypeScript.
 2. **Gitar on a fresh repo.** Confirm Gitar installs and reviews on a fresh
    public repo under the user's GitHub account.
 3. **Comparison fairness.**
