@@ -65,11 +65,12 @@ git checkout -b phase1/professional-template
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "noUncheckedIndexedAccess": true
+    "forceConsistentCasingInFileNames": true
   }
 }
 ```
+
+> Note: we deliberately do NOT add `noUncheckedIndexedAccess` — it would make Express's `req.params.id` resolve to `string | undefined` and break the existing `store.get/update/delete(req.params.id)` call sites. The spec only asks for "shared strict options"; `strict: true` is sufficient.
 
 - [ ] **Step 3: Replace root `package.json`** (workspace orchestrator; no app deps at root)
 
@@ -745,7 +746,7 @@ test('create then delete a note', async ({ page }) => {
 
 ```bash
 npm install
-npx --prefix e2e playwright install --with-deps chromium
+npm exec --workspace e2e -- playwright install --with-deps chromium
 npm run test:e2e
 ```
 Expected: 1 passed; a video recorded under `e2e/test-results/`; HTML report under `e2e/playwright-report/`.
@@ -768,11 +769,19 @@ git commit -m "test(e2e): notes create/delete happy path"
 
 **Files:** Modify `.github/workflows/ci.yml`.
 
-- [ ] **Step 1: Add the e2e job steps** (after `npm run build`, before Sonar)
+- [ ] **Step 1: Add a top-level `permissions` block to `.github/workflows/ci.yml`** (so the PR-comment step can post; default `GITHUB_TOKEN` is read-only otherwise). Directly under `on:`:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
+- [ ] **Step 2: Add the e2e job steps** (after `npm run build`, before Sonar)
 
 ```yaml
       - name: Install Playwright browser
-        run: npx --prefix e2e playwright install --with-deps chromium
+        run: npm exec --workspace e2e -- playwright install --with-deps chromium
       - name: Run e2e
         run: npm run test:e2e
       - name: Upload e2e artifacts
@@ -797,14 +806,12 @@ git commit -m "test(e2e): notes create/delete happy path"
             });
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add .github/workflows/ci.yml
 git commit -m "ci: run Playwright e2e, upload video artifacts, comment on PR"
 ```
-
-> Note: `github-script`'s `createComment` uses the default `GITHUB_TOKEN` (needs `pull-requests: write`). Add `permissions: { contents: read, pull-requests: write }` at the workflow top.
 
 ---
 
@@ -849,7 +856,7 @@ git commit -m "docs: add Apache-2.0 license and OSS hygiene docs"
 
 **Files:** Create `eslint.config.js`, `.prettierrc`, `.prettierignore`, `.editorconfig`, `.gitattributes`; add ESLint deps to root `package.json` devDeps.
 
-- [ ] **Step 1: Add deps** to root `devDependencies`: `typescript-eslint@^8`, `eslint-plugin-react-hooks@^5`, `@eslint/js@^9`, `globals@^15`, then `npm install`.
+- [ ] **Step 1: Add deps** to root `devDependencies`: `typescript-eslint@^8`, `eslint-plugin-react-hooks@^5`, `eslint-config-prettier@^9`, `@eslint/js@^9`, `globals@^15`, then `npm install`. (`eslint-config-prettier` disables ESLint's formatting rules so `eslint` and `prettier --check` don't fight.)
 
 - [ ] **Step 2: `eslint.config.js`** (flat config; TS + React hooks; ignores build/artifacts)
 
@@ -857,17 +864,24 @@ git commit -m "docs: add Apache-2.0 license and OSS hygiene docs"
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
+import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
 export default tseslint.config(
   { ignores: ['**/dist/**', '**/coverage/**', 'e2e/test-results/**', 'e2e/playwright-report/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  { files: ['web/**/*.{ts,tsx}'], plugins: { 'react-hooks': reactHooks }, rules: reactHooks.configs.recommended.rules,
+  // Flat-config preset for react-hooks (v5): `recommended-latest` is the flat entry.
+  { files: ['web/**/*.{ts,tsx}'], ...reactHooks.configs['recommended-latest'],
     languageOptions: { globals: globals.browser } },
   { files: ['server/**/*.ts', 'e2e/**/*.ts'], languageOptions: { globals: globals.node } },
+  // Must be LAST: turn off ESLint formatting rules that conflict with Prettier.
+  prettier,
 );
 ```
+> If `reactHooks.configs['recommended-latest']` is unavailable in the installed
+> version, fall back to `reactHooks.configs.flat.recommended`. Verify with a quick
+> `npm run lint` after writing the config.
 
 - [ ] **Step 3: `.prettierrc`**
 ```json
@@ -1005,12 +1019,14 @@ body:
     id: area
     attributes: { label: Area, options: [web, server, e2e, multiple] }
     validations: { required: true }
-  - type: textarea
+  - type: checkboxes
     id: proof
     attributes:
       label: Proof of work
-      value: "A Playwright e2e covering this feature must pass, with its recorded video linked from the PR."
-    validations: { required: true }
+      description: A Playwright e2e covering this feature must pass, with its recorded video linked from the PR.
+      options:
+        - label: I confirm a passing Playwright e2e + recorded video will be linked on the PR.
+          required: true
 ```
 
 - [ ] **Step 5: `bug_report.yml` and `feature_request.yml`** — standard GitHub form templates (`labels: [type:bug]` / `[type:feature]`), and `config.yml` with `blank_issues_enabled: false` and a Discussions contact link.
@@ -1033,12 +1049,15 @@ Goal: a live work queue. **[OPERATOR]** steps need `gh` with `project` scope + a
 
 - [ ] **Step 1: `.github/labels.json`** — define: `agent-ready`, `needs-human`, `blocked`, `type:feature`, `type:bug`, `type:chore`, `type:docs`, `area:web`, `area:server`, `area:e2e`, `priority:high`, `priority:med`, `priority:low` (each `{name,color,description}`).
 
-- [ ] **Step 2 [OPERATOR]: Apply labels** via `gh`:
+- [ ] **Step 2 [OPERATOR]: Apply labels** via `gh`, looping over `labels.json` (requires `jq`):
 ```bash
-gh label create agent-ready --color 0e8a16 --description "Fully specified; an agent may take it unsupervised" --force
-# …repeat per label (or script a loop over labels.json)
+jq -c '.[]' .github/labels.json | while read -r l; do
+  gh label create "$(jq -r .name <<<"$l")" \
+    --color "$(jq -r .color <<<"$l")" \
+    --description "$(jq -r .description <<<"$l")" --force
+done
 ```
-Expected: `gh label list` shows the taxonomy.
+Expected: `gh label list` shows the full taxonomy.
 
 - [ ] **Step 3: Commit** `git add .github/labels.json && git commit -m "chore(github): define label taxonomy as code"`
 
@@ -1068,7 +1087,7 @@ jobs:
   add:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/add-to-project@v1
+      - uses: actions/add-to-project@v2
         with:
           project-url: https://github.com/orgs/gradionai/projects/<NUMBER>
           github-token: ${{ secrets.PROJECTS_TOKEN }}
@@ -1094,7 +1113,7 @@ gh issue create --title "feat: edit a note" --label agent-ready,type:feature,are
 
 ### Task 5.5: Repo cleanup + tag [OPERATOR/BUILD]
 
-- [ ] **Step 1 [OPERATOR]: Clean up prior PoC churn** (spec Prereq #3):
+- [ ] **Step 1 [OPERATOR]: Clean up prior PoC churn** (spec Prereq #3). **First verify the targets** — `gh pr list --state open` and `git branch -a` — since the PR numbers and the dependabot branch name below are hardcoded and may have changed:
 ```bash
 for n in 5 6 7 8; do gh pr close $n --comment "Closing AC/DC experiment PR (superseded by Phase 1 template)."; done
 for b in run/A1 run/A2 run/B1 run/B2; do git push origin --delete "$b" 2>/dev/null; git branch -D "$b" 2>/dev/null; done
