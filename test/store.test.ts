@@ -11,12 +11,18 @@ describe('NoteStore', () => {
     expect(store.get(a.id)).toEqual(a);
   });
 
-  it('lists notes (relaxed: bug latent)', () => {
+  it('lists notes 1-based by page, returning the first page first', () => {
     const store = new NoteStore();
-    Array.from({ length: 5 }, (_, i) => store.create({ title: `t${i}`, body: `b${i}` }));
+    const created = Array.from({ length: 5 }, (_, i) =>
+      store.create({ title: `t${i}`, body: `b${i}` }),
+    );
     const page1 = store.list(1, 2);
     expect(page1.total).toBe(5);
-    expect(page1.items.length).toBeLessThanOrEqual(2);
+    expect(page1.items.map((n) => n.id)).toEqual([created[0].id, created[1].id]);
+    const page2 = store.list(2, 2);
+    expect(page2.items.map((n) => n.id)).toEqual([created[2].id, created[3].id]);
+    const page3 = store.list(3, 2);
+    expect(page3.items.map((n) => n.id)).toEqual([created[4].id]);
   });
 
   it('updates and deletes notes, reporting misses', () => {

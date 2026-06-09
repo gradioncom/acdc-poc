@@ -24,9 +24,14 @@ describe('notes API', () => {
     for (let i = 0; i < 3; i += 1) {
       await request(app).post('/notes').send({ title: `t${i}`, body: 'b' }).expect(201);
     }
-    const res = await request(app).get('/notes?page=1&pageSize=2').expect(200);
-    expect(res.headers['x-total-count']).toBe('3');
-    expect(res.body.length).toBeLessThanOrEqual(2);
+    const page1 = await request(app).get('/notes?page=1&pageSize=2').expect(200);
+    expect(page1.headers['x-total-count']).toBe('3');
+    expect(page1.body).toHaveLength(2);
+    expect(page1.body.map((n: { title: string }) => n.title)).toEqual(['t0', 't1']);
+
+    const page2 = await request(app).get('/notes?page=2&pageSize=2').expect(200);
+    expect(page2.headers['x-total-count']).toBe('3');
+    expect(page2.body.map((n: { title: string }) => n.title)).toEqual(['t2']);
   });
 
   it('returns 404 for unknown ids', async () => {
