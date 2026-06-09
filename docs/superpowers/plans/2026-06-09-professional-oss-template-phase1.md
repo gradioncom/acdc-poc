@@ -632,12 +632,12 @@ sonar.javascript.lcov.reportPaths=server/coverage/lcov.info,web/coverage/lcov.in
 sonar.exclusions=**/dist/**,e2e/**,**/*.config.*,web/src/main.tsx
 ```
 
-- [ ] **Step 2: Add web steps to `.github/workflows/ci.yml`** (between server test and Sonar)
+- [ ] **Step 2: Add web steps to `.github/workflows/ci.yml`.** Keep the *existing* `npm run test:cov --workspace server` step (don't duplicate it) and **insert** the web-cov + build steps right after it, so the test→build→Sonar order becomes:
 
 ```yaml
-      - run: npm run test:cov --workspace server
-      - run: npm run test:cov --workspace web
-      - run: npm run build
+      - run: npm run test:cov --workspace server   # (existing — do not re-add)
+      - run: npm run test:cov --workspace web      # insert
+      - run: npm run build                          # insert
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
@@ -1049,7 +1049,7 @@ Goal: a live work queue. **[OPERATOR]** steps need `gh` with `project` scope + a
 
 - [ ] **Step 1: `.github/labels.json`** — define: `agent-ready`, `needs-human`, `blocked`, `type:feature`, `type:bug`, `type:chore`, `type:docs`, `area:web`, `area:server`, `area:e2e`, `priority:high`, `priority:med`, `priority:low` (each `{name,color,description}`).
 
-- [ ] **Step 2 [OPERATOR]: Apply labels** via `gh`, looping over `labels.json` (requires `jq`):
+- [ ] **Step 2 [OPERATOR]: Apply labels** via `gh`, looping over `labels.json` (requires `jq`; run from the repo root so the relative path resolves, after Step 3 has committed the file):
 ```bash
 jq -c '.[]' .github/labels.json | while read -r l; do
   gh label create "$(jq -r .name <<<"$l")" \
@@ -1092,7 +1092,7 @@ jobs:
           project-url: https://github.com/orgs/gradionai/projects/<NUMBER>
           github-token: ${{ secrets.PROJECTS_TOKEN }}
 ```
-> Replace `<NUMBER>` from Task 5.2. **Fallback:** if no PAT is permitted, skip this workflow; rely on the board's built-in "auto-add" workflow instead.
+> Replace `<NUMBER>` from Task 5.2 — **this workflow must not be merged with an unreplaced `<NUMBER>`** (it fails at runtime, not commit time), so Task 5.2 (which produces the number) must complete first. **Fallback:** if no PAT is permitted, skip this workflow entirely; rely on the board's built-in "auto-add" workflow instead.
 
 - [ ] **Step 3: Commit** `git add .github/workflows/add-to-project.yml && git commit -m "ci: auto-add issues/PRs to the project board"`
 
