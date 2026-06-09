@@ -11,13 +11,13 @@ fairness note.
 
 | Metric | A1 | A2 | B1 | B2 |
 |--------|----|----|----|----|
-| Rework cycles (Verify→Solve iterations before green) | **0** (self-verify found 0 issues on 1st pass) | **0** | | |
-| Issues caught — count & stage | **Pre-PR self-verify (`analyze_code_snippet`): 0. Sonar PR analysis: 0 new (gate passed, 100% cov). Gitar: 4 findings (1 bug, 1 security, 1 perf, 1 quality-resolved)** | **Sonar: 5 new (gate PASSED, non-blocking); Gitar: 1 (quality)** | | |
-| Regressions or test failures (stage caught) | **None in tests** (15/15) — but Gitar found a latent **memory-leak bug** tests didn't cover | **None** (CI green) | | |
-| Escaped issues at end | **2 real issues escaped self-verify, caught only by Gitar: (a) memory leak on note delete, (b) download missing `nosniff`. Loop 1 ended at self-verify, so neither was fixed.** | **Security: 0 escaped (1 partial). Gitar test-quality finding left unaddressed.** | | |
-| Task B correctness: acceptance test passes? (Y/N) | n/a | n/a | | |
-| Human-attention events | **1 (agent paused to ask before committing/opening PR — deviated from "don't ask")** | **0 (confirmed — fully autonomous)** | | |
-| Rough effort (qualitative) | **TDD + single self-verify pass (PR #6)** | **Single pass, ~minutes (PR 15:07 → Sonar 15:09 → Gitar 15:11)** | | |
+| Rework cycles (Verify→Solve iterations before green) | **0** (self-verify found 0 issues on 1st pass) | **0** | **0** (self-verify found 0; bug found via reasoning, not analysis) | |
+| Issues caught — count & stage | **Pre-PR self-verify (`analyze_code_snippet`): 0. Sonar PR analysis: 0 new (gate passed, 100% cov). Gitar: 4 findings (1 bug, 1 security, 1 perf, 1 quality-resolved)** | **Sonar: 5 new (gate PASSED, non-blocking); Gitar: 1 (quality)** | **Self-verify: 0. Sonar PR: 0 new (gate passed, 100% cov). Gitar: 1 (quality — relaxed tests now redundant)** | |
+| Regressions or test failures (stage caught) | **None in tests** (15/15) — but Gitar found a latent **memory-leak bug** tests didn't cover | **None** (CI green) | **None** (9/9; build clean) | |
+| Escaped issues at end | **2 real issues escaped self-verify, caught only by Gitar: (a) memory leak on note delete, (b) download missing `nosniff`. Loop 1 ended at self-verify, so neither was fixed.** | **Security: 0 escaped (1 partial). Gitar test-quality finding left unaddressed.** | **None material** (bug fixed; Gitar's redundant-test nit non-blocking) | |
+| Task B correctness: acceptance test passes? (Y/N) | n/a | n/a | **Y** (independent hidden acceptance test passes vs PR #7) | |
+| Human-attention events | **1 (agent paused to ask before committing/opening PR — deviated from "don't ask")** | **0 (confirmed — fully autonomous)** | **0** (hands-off; "open PR yourself" instruction added) | |
+| Rough effort (qualitative) | **TDD + single self-verify pass (PR #6)** | **Single pass, ~minutes (PR 15:07 → Sonar 15:09 → Gitar 15:11)** | **Single pass; correct 1-line fix + strict regression tests (PR #7)** | |
 
 ## A2 — detailed log (Task A feature, Loop 2 post-PR)
 
@@ -127,6 +127,35 @@ map → leak). So the A1↔A2 delta is partly *which implementation the agent ha
 to produce*, not purely loop shape. The robust, loop-independent lesson still holds:
 deterministic self-verify missed issues the semantic review caught.
 
+## B1 — detailed log (Task B bugfix, Loop 1 pre-commit self-verify)
+
+**PR #7** `fix(store): 1-based pagination offset` — 2 commits, 31+/4−. Checks all
+green (Gitar "pass", Sonar gate passed).
+
+**Outcome:** the agent **correctly found and fixed the bug** — root cause
+`start = page * pageSize` → `(page - 1) * pageSize` (`src/store.ts:53`) — and added
+strict regression tests pinning exact page contents by id.
+
+**Correctness — verified independently:** the **hidden acceptance test** (not the
+agent's own tests) was run against PR #7's code and **PASSES** (page 1 → first
+items, etc.). The fix is genuinely correct, not just self-consistent.
+
+**What each stage caught:**
+- **Pre-PR self-verify (`analyze_code_snippet`): 0 issues** — as expected, a
+  behavioral off-by-one is invisible to deterministic analysis. Self-verify
+  contributed **nothing to finding the bug**; the agent found it from the bug
+  report + reasoning and locked it in with a regression test.
+- **SonarCloud PR analysis: 0 new**, gate passed, 100% cov.
+- **Gitar: 1 quality finding** — sharply observed that the (deliberately) relaxed
+  tests are now redundant given the new strict ones. Non-blocking; not a
+  correctness issue.
+
+**Key finding (Task B):** for a **logic/behavioral bug**, neither deterministic
+self-verify nor Sonar PR analysis helps — correctness comes from the **Guide +
+the agent's reasoning + a good regression test**. AI review (Gitar) adds polish
+but, here, not correctness. This complements the Task A finding: the value of each
+verification layer depends on the *class* of issue.
+
 ## Comparison summary
 - **Loop 1 vs Loop 2 on Task A:** Both first cuts were shaped by the Guide, but
   neither loop's *deterministic* checks (self-verify in A1, Sonar PR analysis in
@@ -135,9 +164,8 @@ deterministic self-verify missed issues the semantic review caught.
   1 stops before post-PR review. **Takeaway: layer deterministic + AI review;
   don't treat pre-commit self-verify as a replacement for review.** (n=1 per cell;
   agent-variance caveat above.)
-- **Loop 1 vs Loop 2 on Task B:** pending B1/B2.
-
-## Comparison summary
-- Loop 1 vs Loop 2 on Task A: *A1 pre-PR self-verify clean (0 rework); both loops'
-  first cut secure. Awaiting A1 PR review to complete the comparison.*
-- Loop 1 vs Loop 2 on Task B: *pending B1/B2.*
+- **Loop 1 vs Loop 2 on Task B:** B1 (Loop 1) fixed the bug correctly with 0
+  rework; deterministic self-verify was irrelevant to a behavioral bug (correctness
+  came from reasoning + regression test). *Awaiting B2 (Loop 2) to see whether
+  post-PR review would catch a wrong/incomplete fix — though if B2's agent also
+  fixes it cleanly, Task B won't strongly discriminate the loops.*
