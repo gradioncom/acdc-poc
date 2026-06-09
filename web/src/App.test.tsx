@@ -5,17 +5,21 @@ import { App } from './App';
 
 function mockFetchSequence() {
   const notes: Array<{ id: string; title: string; body: string }> = [];
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-    if (init?.method === 'POST') {
-      const b = JSON.parse(String(init.body));
-      const n = { id: String(notes.length + 1), title: b.title, body: b.body };
-      notes.push(n);
-      return new Response(JSON.stringify(n), { status: 201 });
-    }
-    return new Response(JSON.stringify(notes), {
-      status: 200, headers: { 'X-Total-Count': String(notes.length) },
-    });
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const b = JSON.parse(String(init.body));
+        const n = { id: String(notes.length + 1), title: b.title, body: b.body };
+        notes.push(n);
+        return new Response(JSON.stringify(n), { status: 201 });
+      }
+      return new Response(JSON.stringify(notes), {
+        status: 200,
+        headers: { 'X-Total-Count': String(notes.length) },
+      });
+    }),
+  );
 }
 
 describe('App', () => {

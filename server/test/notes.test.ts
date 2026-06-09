@@ -22,7 +22,10 @@ describe('notes API', () => {
   it('paginates 1-based and exposes total count', async () => {
     const app = createApp();
     for (let i = 0; i < 3; i += 1) {
-      await request(app).post('/api/notes').send({ title: `t${i}`, body: 'b' }).expect(201);
+      await request(app)
+        .post('/api/notes')
+        .send({ title: `t${i}`, body: 'b' })
+        .expect(201);
     }
     const res = await request(app).get('/api/notes?page=1&pageSize=2').expect(200);
     expect(res.headers['x-total-count']).toBe('3');

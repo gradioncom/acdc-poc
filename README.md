@@ -23,14 +23,14 @@ Open the URL printed by Vite (default: http://localhost:5173). The dev server pr
 
 ## Scripts
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start the Vite dev server (proxies `/api` to Express on :3000) |
-| `npm run build` | Build the SPA (`web/dist`) and compile the server (`server/dist`) |
-| `npm test` | Run Vitest suites for `server` and `web` |
+| Command            | Description                                                               |
+| ------------------ | ------------------------------------------------------------------------- |
+| `npm run dev`      | Start the Vite dev server (proxies `/api` to Express on :3000)            |
+| `npm run build`    | Build the SPA (`web/dist`) and compile the server (`server/dist`)         |
+| `npm test`         | Run Vitest suites for `server` and `web`                                  |
 | `npm run test:e2e` | Run Playwright end-to-end tests (requires a build: `npm run build` first) |
-| `npm run lint` | ESLint + Prettier check (must be clean before merging) |
-| `npm run format` | Auto-format all files with Prettier |
+| `npm run lint`     | ESLint + Prettier check (must be clean before merging)                    |
+| `npm run format`   | Auto-format all files with Prettier                                       |
 
 ---
 

@@ -8,18 +8,28 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
-    try { setNotes(await listNotes()); } catch (e) { setError(String(e)); }
+    try {
+      setNotes(await listNotes());
+    } catch (e) {
+      setError(String(e));
+    }
   }
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return;
     try {
       await createNote({ title, body });
-      setTitle(''); setBody(''); setError(null);
+      setTitle('');
+      setBody('');
+      setError(null);
       await refresh();
-    } catch (e) { setError(String(e)); }
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   return (
@@ -27,15 +37,28 @@ export function App() {
       <h1>Notes</h1>
       {error && <p role="alert">{error}</p>}
       <form onSubmit={onSubmit}>
-        <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-        <label>Body<textarea value={body} onChange={(e) => setBody(e.target.value)} /></label>
+        <label>
+          Title
+          <input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label>
+          Body
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} />
+        </label>
         <button type="submit">Add note</button>
       </form>
       <ul>
         {notes.map((n) => (
           <li key={n.id}>
             <strong>{n.title}</strong>: {n.body}
-            <button onClick={async () => { await deleteNote(n.id); await refresh(); }}>Delete</button>
+            <button
+              onClick={async () => {
+                await deleteNote(n.id);
+                await refresh();
+              }}
+            >
+              Delete
+            </button>
           </li>
         ))}
       </ul>

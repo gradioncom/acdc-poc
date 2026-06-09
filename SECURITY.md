@@ -14,18 +14,18 @@ We will acknowledge receipt within **2 business days** and aim to provide a reso
 
 ## Supported Versions
 
-| Version | Supported |
-|---|---|
-| `main` (latest) | Yes |
-| older tags | No — please upgrade |
+| Version         | Supported           |
+| --------------- | ------------------- |
+| `main` (latest) | Yes                 |
+| older tags      | No — please upgrade |
 
 ## Response Expectations
 
-| Stage | Target time |
-|---|---|
-| Acknowledgement | 2 business days |
-| Initial triage | 5 business days |
+| Stage             | Target time                                            |
+| ----------------- | ------------------------------------------------------ |
+| Acknowledgement   | 2 business days                                        |
+| Initial triage    | 5 business days                                        |
 | Fix or mitigation | 14 business days (critical) / 30 business days (other) |
-| Public disclosure | Coordinated with reporter after fix is released |
+| Public disclosure | Coordinated with reporter after fix is released        |
 
 We follow responsible disclosure. Once a fix is released, we will publish a security advisory on GitHub.

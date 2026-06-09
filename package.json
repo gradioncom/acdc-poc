@@ -3,8 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
-  "workspaces": ["server", "web", "e2e"],
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "server",
+    "web",
+    "e2e"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace web",
     "build": "npm run build --workspace web && npm run build --workspace server",
@@ -18,8 +24,13 @@
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
     "@commitlint/config-conventional": "^19.0.0",
+    "@eslint/js": "^9.0.0",
     "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.0.0",
     "prettier": "^3.3.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
   }
 }

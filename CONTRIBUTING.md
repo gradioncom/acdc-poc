@@ -19,16 +19,16 @@ npm ci
 
 ## Workspace commands
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Vite dev server + Express backend (hot reload) |
-| `npm run build` | Build SPA + compile server |
-| `npm test` | Vitest — server + web unit/integration tests |
-| `npm run test:e2e` | Playwright end-to-end tests (needs a build) |
-| `npm run lint` | ESLint + Prettier check |
-| `npm run format` | Auto-format with Prettier |
-| `npm run test --workspace server` | Server tests only |
-| `npm run test --workspace web` | Web tests only |
+| Command                           | What it does                                   |
+| --------------------------------- | ---------------------------------------------- |
+| `npm run dev`                     | Vite dev server + Express backend (hot reload) |
+| `npm run build`                   | Build SPA + compile server                     |
+| `npm test`                        | Vitest — server + web unit/integration tests   |
+| `npm run test:e2e`                | Playwright end-to-end tests (needs a build)    |
+| `npm run lint`                    | ESLint + Prettier check                        |
+| `npm run format`                  | Auto-format with Prettier                      |
+| `npm run test --workspace server` | Server tests only                              |
+| `npm run test --workspace web`    | Web tests only                                 |
 
 ---
 
