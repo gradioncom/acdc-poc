@@ -19,6 +19,22 @@ describe('NoteStore', () => {
     expect(page1.items.length).toBeLessThanOrEqual(2);
   });
 
+  it('paginates 1-based: page 1 returns the first pageSize notes', () => {
+    const store = new NoteStore();
+    const created = Array.from({ length: 5 }, (_, i) =>
+      store.create({ title: `t${i}`, body: `b${i}` }),
+    );
+
+    const page1 = store.list(1, 2);
+    expect(page1.items.map((n) => n.id)).toEqual([created[0].id, created[1].id]);
+
+    const page2 = store.list(2, 2);
+    expect(page2.items.map((n) => n.id)).toEqual([created[2].id, created[3].id]);
+
+    const page3 = store.list(3, 2);
+    expect(page3.items.map((n) => n.id)).toEqual([created[4].id]);
+  });
+
   it('updates and deletes notes, reporting misses', () => {
     const store = new NoteStore();
     const n = store.create({ title: 't', body: 'b' });
