@@ -32,6 +32,16 @@ export function App() {
     }
   }
 
+  async function onDelete(id: string) {
+    try {
+      await deleteNote(id);
+      setError(null);
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   return (
     <main>
       <h1>Notes</h1>
@@ -51,14 +61,7 @@ export function App() {
         {notes.map((n) => (
           <li key={n.id}>
             <strong>{n.title}</strong>: {n.body}
-            <button
-              onClick={async () => {
-                await deleteNote(n.id);
-                await refresh();
-              }}
-            >
-              Delete
-            </button>
+            <button onClick={() => void onDelete(n.id)}>Delete</button>
           </li>
         ))}
       </ul>
