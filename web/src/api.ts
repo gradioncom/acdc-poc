@@ -30,6 +30,19 @@ export async function createNote(input: { title: string; body: string }): Promis
   return res.json();
 }
 
+export async function updateNote(
+  id: string,
+  input: { title?: string; body?: string },
+): Promise<Note> {
+  const res = await fetch(`${base}/${id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error('failed to update note');
+  return res.json();
+}
+
 export async function deleteNote(id: string): Promise<void> {
   const res = await fetch(`${base}/${id}`, { method: 'DELETE' });
   if (!res.ok && res.status !== 404) throw new Error('failed to delete note');
