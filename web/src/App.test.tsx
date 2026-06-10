@@ -107,6 +107,25 @@ describe('App', () => {
     expect(screen.queryByText('Original title')).not.toBeInTheDocument();
   });
 
+  it('does not save when edit title or body is cleared to whitespace', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Keep me');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'Keep body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Keep me')).toBeInTheDocument());
+
+    // Open edit form and clear the title field
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }));
+    const editTitleInput = screen.getByRole('textbox', { name: /edit title/i });
+    await userEvent.clear(editTitleInput);
+
+    // Clicking Save should be a no-op — note stays in the list unchanged
+    await userEvent.click(screen.getByRole('button', { name: /save/i }));
+
+    // Edit form should still be visible (save was suppressed)
+    expect(screen.getByRole('textbox', { name: /edit title/i })).toBeInTheDocument();
+  });
+
   it('shows an error when loading notes fails', async () => {
     vi.stubGlobal(
       'fetch',

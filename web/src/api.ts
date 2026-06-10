@@ -4,6 +4,12 @@ export interface Note {
   body: string;
 }
 
+function isNote(value: unknown): value is Note {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.id === 'string' && typeof v.title === 'string' && typeof v.body === 'string';
+}
+
 export interface NotesPage {
   notes: Note[];
   total: number;
@@ -27,7 +33,9 @@ export async function createNote(input: { title: string; body: string }): Promis
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error('failed to create note');
-  return res.json();
+  const created: unknown = await res.json();
+  if (!isNote(created)) throw new Error('invalid note payload');
+  return created;
 }
 
 export async function updateNote(
@@ -40,7 +48,9 @@ export async function updateNote(
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error('failed to update note');
-  return res.json();
+  const updated: unknown = await res.json();
+  if (!isNote(updated)) throw new Error('invalid note payload');
+  return updated;
 }
 
 export async function deleteNote(id: string): Promise<void> {

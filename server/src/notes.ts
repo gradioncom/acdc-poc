@@ -36,7 +36,16 @@ export function createNotesRouter(store: NoteStore): Router {
   });
 
   router.put('/:id', (req: Request, res: Response) => {
-    const { title, body } = (req.body ?? {}) as { title?: unknown; body?: unknown };
+    const payload = req.body;
+    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+      res.status(400).json({ error: 'payload must be an object' });
+      return;
+    }
+    const { title, body } = payload as { title?: unknown; body?: unknown };
+    if (title === undefined && body === undefined) {
+      res.status(400).json({ error: 'at least one of title or body is required' });
+      return;
+    }
     if (title !== undefined && typeof title !== 'string') {
       res.status(400).json({ error: 'title must be a string' });
       return;

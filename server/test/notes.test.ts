@@ -55,7 +55,11 @@ describe('notes API', () => {
 
   it('returns 404 when PUT targets a non-existent note', async () => {
     const app = createApp();
-    await request(app).put('/api/notes/nope').send({ title: 'x', body: 'y' }).expect(404);
+    const res = await request(app)
+      .put('/api/notes/nope')
+      .send({ title: 'x', body: 'y' })
+      .expect(404);
+    expect(res.body).toEqual({ error: 'not found' });
   });
 
   it('returns 400 when PUT payload has non-string fields', async () => {
@@ -64,8 +68,40 @@ describe('notes API', () => {
       .post('/api/notes')
       .send({ title: 't', body: 'b' })
       .expect(201);
-    await request(app).put(`/api/notes/${created.body.id}`).send({ title: 42 }).expect(400);
-    await request(app).put(`/api/notes/${created.body.id}`).send({ body: true }).expect(400);
+    const badTitle = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .send({ title: 42 })
+      .expect(400);
+    expect(badTitle.body).toEqual({ error: 'title must be a string' });
+    const badBody = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .send({ body: true })
+      .expect(400);
+    expect(badBody.body).toEqual({ error: 'body must be a string' });
+  });
+
+  it('returns 400 when PUT payload is empty object (no fields)', async () => {
+    const app = createApp();
+    const created = await request(app)
+      .post('/api/notes')
+      .send({ title: 't', body: 'b' })
+      .expect(201);
+    const res = await request(app).put(`/api/notes/${created.body.id}`).send({}).expect(400);
+    expect(res.body).toEqual({ error: 'at least one of title or body is required' });
+  });
+
+  it('returns 400 when PUT payload is not an object', async () => {
+    const app = createApp();
+    const created = await request(app)
+      .post('/api/notes')
+      .send({ title: 't', body: 'b' })
+      .expect(201);
+    const res = await request(app)
+      .put(`/api/notes/${created.body.id}`)
+      .set('content-type', 'application/json')
+      .send(JSON.stringify([{ title: 'x' }]))
+      .expect(400);
+    expect(res.body).toEqual({ error: 'payload must be an object' });
   });
 
   it('reflects the updated note in subsequent GET and list responses', async () => {

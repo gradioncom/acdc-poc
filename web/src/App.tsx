@@ -73,6 +73,7 @@ export function App() {
   }
 
   async function onEditSave(id: string) {
+    if (!editTitle.trim() || !editBody.trim()) return;
     try {
       await updateNote(id, { title: editTitle, body: editBody });
       setEditingId(null);
