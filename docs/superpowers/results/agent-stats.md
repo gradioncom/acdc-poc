@@ -1,33 +1,21 @@
 # Agent Statistics — Autonomous Feature Run
 
 > Living telemetry log for the Phase-2 parallel autonomous run on `gradionai/acdc-poc`.
-> Each row = one subagent invocation. Backfilled for the run so far; appended going forward.
+> Each row = one subagent invocation. Backfilled for the run; appended going forward.
 
 ## Methodology & caveats
 
-- **out_tokens** = `subagent_tokens` reported by the harness on completion — the tokens the
-  agent *generated* (output). **Input tokens (context: prompts, file reads, tool results) are
-  NOT captured per-agent** and are typically several× larger, so true billed cost is higher
-  than the output-only figure below.
-- **duration** = wall-clock the agent ran (`duration_ms`). Agents run in parallel (≤5), so the
-  sum of durations is NOT elapsed time — see parallelism note in the summary.
-- **tool_calls** = `tool_uses`, a rough proxy for task complexity / amount of work.
-- **out_cost** = out_tokens × $15/M (Claude Sonnet 4.x output rate). All agents ran on Sonnet.
-- **All-in cost estimate**: with input:output ratio R (agentic work ~5–15:1) and $3/M input,
-  all-in ≈ out_tokens × (15 + 3R)/1e6 → roughly **2–4× the out_cost** shown. Treat out_cost as a
-  lower bound.
-- Model: `claude-sonnet-4-x` for all listed agents (orchestrator on Opus, not counted here).
+- **out_tokens** = `subagent_tokens` (tokens the agent *generated*). **Input tokens (context,
+  file reads, tool results) are NOT captured per-agent** and are usually several× larger, so true
+  billed cost is higher than the output-only figure here.
+- **duration** = agent wall-clock. Agents run ≤5 in parallel, so the sum is NOT elapsed time.
+- **out_cost** = out_tokens × $15/M (Claude Sonnet 4.x output). All agents ran on Sonnet (the
+  orchestrator runs on Opus and is not counted).
+- **All-in estimate** ≈ 2–4× out_cost (input:output ~5–15:1 at $3/M input).
 
-## Suggested metrics to watch (the questions this answers)
-
-- **Cost per merged PR** = total agent cost ÷ PRs merged — the headline ROI number.
-- **Iterations per PR** = how many agent passes (impl + resolve + re-sync) a PR needed before
-  merge. High = expensive churn (here: the `App.tsx` monolith drove many re-syncs).
-- **CI-pass-first-try rate** — share of pushes that pass CI without a follow-up resolver.
-- **Role mix** — impl vs resolve vs re-sync token/time share (re-sync = conflict-cascade tax).
-- **Parallel speedup** = sum(durations) ÷ wall-clock elapsed.
-- **Reliability** — stalled/failed agents (e.g. the 4 killed by a network drop on 2026-06-11).
-- **tokens/min** — generation intensity per agent.
+## Suggested metrics (what this answers)
+- **Cost per merged PR**, **iterations per PR** (churn), **CI-pass-first-try rate**, **role mix**,
+  **parallel speedup**, **reliability** (stalls), **tokens/min**.
 
 ## Per-agent log
 
@@ -77,37 +65,67 @@
 | 42 | Re-sync #74 onto new main | resync | #74 | 15.2 | 78,567 | 98 | 1.18 |
 | 43 | Re-sync #75 onto new main | resync | #75 | 5.8 | 42,018 | 49 | 0.63 |
 | 44 | Re-sync+fix #75 sonar coverage | resync | #75 | 10.6 | 67,977 | 88 | 1.02 |
+| 45 | Resolve #73 sonar reliability+a11y | resolve | #73 | 24.9 | 120,010 | 166 | 1.80 |
+| 46 | Fix #75 mobile 320px overflow | resync | #75 | 4.9 | 49,634 | 32 | 0.74 |
+| 47 | Final re-sync #75 onto main | resync | #75 | 3.6 | 34,539 | 27 | 0.52 |
+| 48 | Fix #75 flaky title-sort nav test | resolve | #75 | 4.3 | 31,517 | 34 | 0.47 |
+| 49 | Fix #75 Escape/dialog focus bug | resolve | #75 | 3.0 | 66,064 | 28 | 0.99 |
 
-## Aggregates (run so far)
+## Aggregates (full feature run — COMPLETE)
 
-- **Agents logged:** 44 (excludes 4 agents killed mid-run by a network drop — work recovered from disk, no telemetry)
-- **Total output tokens:** 2,827,756
-- **Total agent-minutes:** 279 min (4.7 agent-hours) — wall-clock far less due to ≤5 parallelism
-- **Output-only cost:** $42.42  → **all-in estimate ≈ $85–$170**
-- **Avg per agent:** 64,267 out_tokens, 6.3 min
+- **Agents logged:** 49 (+4 killed by a network drop on 2026-06-11, no telemetry; work recovered from disk)
+- **Total output tokens:** 3,129,520
+- **Total agent-minutes:** 320 (5.3 agent-hours) — wall-clock far less (≤5 parallel)
+- **Output-only cost:** $46.94 → **all-in estimate ≈ $94–$188**
+- **Avg/agent:** 63,868 out_tokens, 6.5 min
+- **Outcome:** 20 backlog features + 4 foundation/fix PRs merged; **24 issues Done**, 0 open PRs.
+- **Cost per merged PR** (≈24 PRs merged, output-only): **$1.96** (~$6 all-in)
 
 ### By role
 
 | Role | Agents | out_tokens | avg out_tokens | total min | avg min | out_cost ($) |
 |------|-------:|-----------:|---------------:|----------:|--------:|-------------:|
 | impl | 11 | 877,100 | 79,736 | 76 | 6.9 | 13.16 |
-| resolve | 15 | 895,330 | 59,689 | 90 | 6.0 | 13.43 |
-| resync | 13 | 732,735 | 56,364 | 78 | 6.0 | 10.99 |
+| resolve | 18 | 1,112,921 | 61,829 | 122 | 6.8 | 16.69 |
+| resync | 15 | 816,908 | 54,461 | 87 | 5.8 | 12.25 |
 | sync | 2 | 175,401 | 87,700 | 21 | 10.5 | 2.63 |
 | recover | 2 | 96,415 | 48,208 | 8 | 4.1 | 1.45 |
 | foundation | 1 | 50,775 | 50,775 | 5 | 5.5 | 0.76 |
 
+### Iterations per PR (passes until merge — the churn metric)
+
+| PR/branch | agent passes |
+|-----------|-------------:|
+| #75 | 9 |
+| #73 | 5 |
+| #61 | 4 |
+| #74 | 4 |
+| #64 | 3 |
+| #65 | 3 |
+| #69 | 3 |
+| #72 | 3 |
+| #71 | 3 |
+| #76 | 3 |
+| #67 | 2 |
+| #66 | 2 |
+| #59 | 1 |
+| #62 | 1 |
+| #63 | 1 |
+| #68 | 1 |
+| #70 | 1 |
+
 ### Observations
 
-- **Re-sync + resolve dominate**: a large share of tokens/time went to conflict resolution and
-  review-finding fixes, NOT first-pass implementation. Root cause: `web/src/App.tsx` is a
-  monolith every UI ticket edits, so each merge forced the others to re-sync (the cascade). The
-  planned **#77 App.tsx decompose** is the direct mitigation.
-- **CI-pass-first-try was low** for UI PRs: most needed ≥1 resolver pass (Prettier on new e2e
-  specs, Playwright strict-mode locator collisions, SonarCloud new-code coverage <80%, and Gitar
-  edge-case findings). Server-only PRs fared better.
-- **Layered verification earned its keep**: CI e2e + Gitar caught real bugs unit tests missed
-  (WCAG 44px touch targets, ARIA list roles, rate-limiter throttling the suite, nav edge cases).
+- **Re-sync + resolve dominated** over first-pass implementation — the `App.tsx` monolith forced
+  every merge to re-sync the rest (the cascade). PR **#75** (keyboard shortcuts) alone took the most
+  passes: it touched global key handling, the header layout, nav tests, the confirm-dialog
+  interaction, and a flaky-timeout test. **#77 (decompose App.tsx)** is the direct mitigation for
+  the UI phase.
+- **CI-pass-first-try was low for UI PRs**: most needed ≥1 resolver (Prettier on new e2e specs,
+  Playwright strict-mode locator collisions, SonarCloud new-code coverage <80%, Gitar edge cases).
+  Server-only PRs fared best.
+- **Layered verification repeatedly paid off**: CI e2e + Gitar caught real bugs unit tests missed —
+  WCAG 44px touch targets, ARIA list roles, rate-limiter throttling the suite, multi-file upload
+  memory cap, sort/duplicate nav edge cases, and the Escape/confirm-dialog focus race.
 
-_Note: backfilled best-effort from harness completion notifications for the post-restart portion
-of the run; numbers are generation-side and approximate. Maintained going forward._
+_Generation-side, approximate; maintained going forward (UI phase #77–#82 next)._
