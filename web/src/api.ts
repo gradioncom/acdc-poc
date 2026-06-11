@@ -33,6 +33,8 @@ export interface NotesPage {
   total: number;
 }
 
+export type SortOrder = 'newest' | 'oldest' | 'title';
+
 const base = '/api/notes';
 
 export async function listNotes(
@@ -40,10 +42,12 @@ export async function listNotes(
   pageSize = 5,
   query?: string,
   tag?: string,
+  sort: SortOrder = 'newest',
 ): Promise<NotesPage> {
   const params = new URLSearchParams({
     page: String(page),
     pageSize: String(pageSize),
+    sort,
   });
   if (query !== undefined && query !== '') {
     params.set('q', query);
