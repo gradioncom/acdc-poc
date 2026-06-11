@@ -34,6 +34,9 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers): void {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
       if (isTypingContext(e)) return;
+      // Ignore combinations with modifier keys so we don't hijack
+      // browser/OS shortcuts (e.g. Cmd+N, Ctrl+/).
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       switch (e.key) {
         case 'n':

@@ -12,8 +12,17 @@ function makeHandlers() {
 }
 
 /** Dispatch a keydown event on `target` (bubbles to document). */
-function fireKey(key: string, target: EventTarget = document.body): void {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+function fireKey(
+  key: string,
+  target: EventTarget = document.body,
+  modifiers: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean } = {},
+): void {
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+    ...modifiers,
+  });
   target.dispatchEvent(event);
 }
 
@@ -125,6 +134,42 @@ describe('useKeyboardShortcuts', () => {
     expect(handlers.onNewNote).not.toHaveBeenCalled();
     expect(handlers.onFocusSearch).not.toHaveBeenCalled();
     expect(handlers.onEscape).not.toHaveBeenCalled();
+    expect(handlers.onToggleHelp).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call onNewNote when Cmd+N is pressed (metaKey)', () => {
+    const handlers = makeHandlers();
+    renderHook(() => useKeyboardShortcuts(handlers));
+
+    fireKey('n', document.body, { metaKey: true });
+
+    expect(handlers.onNewNote).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call onNewNote when Ctrl+N is pressed (ctrlKey)', () => {
+    const handlers = makeHandlers();
+    renderHook(() => useKeyboardShortcuts(handlers));
+
+    fireKey('n', document.body, { ctrlKey: true });
+
+    expect(handlers.onNewNote).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call onFocusSearch when Ctrl+/ is pressed (ctrlKey)', () => {
+    const handlers = makeHandlers();
+    renderHook(() => useKeyboardShortcuts(handlers));
+
+    fireKey('/', document.body, { ctrlKey: true });
+
+    expect(handlers.onFocusSearch).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call onToggleHelp when Alt+? is pressed (altKey)', () => {
+    const handlers = makeHandlers();
+    renderHook(() => useKeyboardShortcuts(handlers));
+
+    fireKey('?', document.body, { altKey: true });
+
     expect(handlers.onToggleHelp).not.toHaveBeenCalled();
   });
 });
