@@ -40,7 +40,7 @@ test('cancel in confirm dialog does not delete the note', async ({ page }) => {
   await expect(item).toBeVisible();
 
   // Click Delete — confirm dialog opens.
-  await item.getByRole('button', { name: /delete/i }).click();
+  await item.getByRole('button', { name: /^delete cancel-delete note/i }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
 
