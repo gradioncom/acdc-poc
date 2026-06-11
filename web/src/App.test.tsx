@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { listNotes } from './api';
 
-type MockNote = { id: string; title: string; body: string; tags: string[] };
+type MockNote = { id: string; title: string; body: string; tags: string[]; pinned: boolean };
 
 function buildResponse(notes: MockNote[], page = 1, pageSize = 5) {
   const start = (page - 1) * pageSize;
@@ -69,13 +69,28 @@ function mockFetchSequence() {
         return new Response(JSON.stringify(metas), { status: 200 });
       }
 
+      if (init?.method === 'PATCH' && /\/api\/notes\/[^/]+\/pin$/.test(urlStr)) {
+        const noteId = urlStr.split('/').at(-2) ?? '';
+        const idx = notes.findIndex((n) => n.id === noteId);
+        if (idx === -1) {
+          return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+        }
+        notes[idx] = { ...notes[idx], pinned: !notes[idx].pinned };
+        return new Response(JSON.stringify(notes[idx]), { status: 200 });
+      }
       if (init?.method === 'POST') {
         const b = JSON.parse(String(init.body)) as {
           title: string;
           body: string;
           tags?: string[];
         };
-        const n: MockNote = { id: String(++seq), title: b.title, body: b.body, tags: b.tags ?? [] };
+        const n: MockNote = {
+          id: String(++seq),
+          title: b.title,
+          body: b.body,
+          tags: b.tags ?? [],
+          pinned: false,
+        };
         notes.push(n);
         return new Response(JSON.stringify(n), { status: 201 });
       }
@@ -208,15 +223,14 @@ describe('App', () => {
 
   it('disables Previous on page 1 and enables Next when there are multiple pages', async () => {
     // Pre-populate with 6 notes via mock so total > pageSize (5)
-    let notes: Array<{ id: string; title: string; body: string; tags: string[] }> = Array.from(
-      { length: 6 },
-      (_, i) => ({
+    let notes: Array<{ id: string; title: string; body: string; tags: string[]; pinned: boolean }> =
+      Array.from({ length: 6 }, (_, i) => ({
         id: String(i + 1),
         title: `Note ${i + 1}`,
         body: `Body ${i + 1}`,
         tags: [],
-      }),
-    );
+        pinned: false,
+      }));
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
@@ -252,6 +266,7 @@ describe('App', () => {
       title: `Existing ${i + 1}`,
       body: `body ${i + 1}`,
       tags: [] as string[],
+      pinned: false,
     }));
     const notes = [...initialNotes];
     let nextId = initialNotes.length + 1;
@@ -264,7 +279,13 @@ describe('App', () => {
             body: string;
             tags?: string[];
           };
-          const n = { id: String(nextId++), title: b.title, body: b.body, tags: b.tags ?? [] };
+          const n = {
+            id: String(nextId++),
+            title: b.title,
+            body: b.body,
+            tags: b.tags ?? [],
+            pinned: false,
+          };
           notes.push(n);
           return new Response(JSON.stringify(n), { status: 201 });
         }
@@ -295,6 +316,7 @@ describe('App', () => {
       title: `Note ${i + 1}`,
       body: `Body ${i + 1}`,
       tags: [] as string[],
+      pinned: false,
     }));
     vi.stubGlobal(
       'fetch',
@@ -479,6 +501,51 @@ describe('App — tag deduplication', () => {
     await waitFor(() => expect(screen.getByText('Dup tag note')).toBeInTheDocument());
     const tagSpans = screen.getAllByText('alpha');
     expect(tagSpans).toHaveLength(1);
+  });
+});
+
+describe('App — pin', () => {
+  beforeEach(() => mockFetchSequence());
+
+  it('shows a Pin button for each note', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Pin me');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Pin me')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: /^pin pin me$/i })).toBeInTheDocument();
+  });
+
+  it('toggling pin changes button label to Unpin', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Toggle pin');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Toggle pin')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: /^pin toggle pin$/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^unpin toggle pin$/i })).toBeInTheDocument(),
+    );
+  });
+
+  it('unpinning a note changes button label back to Pin', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Unpin me');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Unpin me')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: /^pin unpin me$/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^unpin unpin me$/i })).toBeInTheDocument(),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /^unpin unpin me$/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^pin unpin me$/i })).toBeInTheDocument(),
+    );
   });
 });
 

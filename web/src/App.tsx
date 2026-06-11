@@ -5,6 +5,7 @@ import {
   deleteNote,
   listAttachments,
   listNotes,
+  togglePin,
   updateNote,
   uploadAttachment,
   type AttachmentMeta,
@@ -185,6 +186,16 @@ export function App() {
     }
   }
 
+  async function onTogglePin(id: string) {
+    try {
+      await togglePin(id);
+      setError(null);
+      await refresh(page);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   async function onDelete(id: string) {
     try {
       await deleteNote(id);
@@ -283,6 +294,7 @@ export function App() {
           ) : (
             <li key={n.id}>
               <strong>{n.title}</strong>: {n.body}
+              {n.pinned && <span aria-label="Pinned">📌</span>}
               {n.tags.length > 0 && (
                 <span aria-label="Tags">
                   {n.tags.map((tag) => (
@@ -292,6 +304,12 @@ export function App() {
                   ))}
                 </span>
               )}
+              <button
+                aria-label={n.pinned ? `Unpin ${n.title}` : `Pin ${n.title}`}
+                onClick={() => void onTogglePin(n.id)}
+              >
+                {n.pinned ? 'Unpin' : 'Pin'}
+              </button>
               <button aria-label={`Edit ${n.title}`} onClick={() => onEditStart(n)}>
                 Edit
               </button>
