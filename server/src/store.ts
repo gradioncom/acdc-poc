@@ -6,6 +6,23 @@ export interface Note {
   createdAt: number;
 }
 
+export interface Attachment {
+  /** Original filename supplied by the client — stored only as metadata. */
+  filename: string;
+  /** MIME content type validated at upload time. */
+  contentType: string;
+  /** Byte length of the file data. */
+  size: number;
+  /** Raw file bytes held in memory. */
+  data: Buffer;
+}
+
+export interface AttachmentMeta {
+  filename: string;
+  contentType: string;
+  size: number;
+}
+
 export interface ListResult {
   items: Note[];
   total: number;
@@ -13,6 +30,11 @@ export interface ListResult {
 
 export class NoteStore {
   private readonly notes = new Map<string, Note>();
+  /**
+   * Attachments are keyed by `${noteId}/${sanitisedFilename}`.
+   * The key is constructed internally — never derived directly from client input.
+   */
+  private readonly attachments = new Map<string, Attachment>();
   private seq = 0;
 
   create(input: { title: string; body: string; tags?: string[] }): Note {
@@ -48,7 +70,59 @@ export class NoteStore {
   }
 
   delete(id: string): boolean {
-    return this.notes.delete(id);
+    if (!this.notes.delete(id)) return false;
+    // Remove all attachments belonging to this note
+    for (const key of this.attachments.keys()) {
+      if (key.startsWith(`${id}/`)) {
+        this.attachments.delete(key);
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Sanitise the client-supplied filename to a safe basename (strip path
+   * separators and leading dots) so it can be used as a storage key.
+   */
+  private sanitiseFilename(raw: string): string {
+    // Keep only the basename, strip traversal attempts
+    const base = raw.replace(/[/\\]/g, '_').replace(/^\.+/, '').trim();
+    return base || 'attachment';
+  }
+
+  addAttachment(
+    noteId: string,
+    input: { filename: string; contentType: string; data: Buffer },
+  ): AttachmentMeta | undefined {
+    if (!this.notes.has(noteId)) return undefined;
+    const safeName = this.sanitiseFilename(input.filename);
+    const key = `${noteId}/${safeName}`;
+    const attachment: Attachment = {
+      filename: safeName,
+      contentType: input.contentType,
+      size: input.data.byteLength,
+      data: input.data,
+    };
+    this.attachments.set(key, attachment);
+    return { filename: safeName, contentType: attachment.contentType, size: attachment.size };
+  }
+
+  getAttachment(noteId: string, filename: string): Attachment | undefined {
+    if (!this.notes.has(noteId)) return undefined;
+    const safeName = this.sanitiseFilename(filename);
+    return this.attachments.get(`${noteId}/${safeName}`);
+  }
+
+  listAttachments(noteId: string): AttachmentMeta[] | undefined {
+    if (!this.notes.has(noteId)) return undefined;
+    const prefix = `${noteId}/`;
+    const result: AttachmentMeta[] = [];
+    for (const [key, att] of this.attachments) {
+      if (key.startsWith(prefix)) {
+        result.push({ filename: att.filename, contentType: att.contentType, size: att.size });
+      }
+    }
+    return result;
   }
 
   list(page: number, pageSize: number, query?: string, tag?: string): ListResult {

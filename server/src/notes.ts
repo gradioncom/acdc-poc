@@ -1,5 +1,37 @@
 import { Router, type Request, type Response } from 'express';
+import multer from 'multer';
 import type { NoteStore } from './store.js';
+
+/** 5 MB upper bound for individual file uploads. */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Allowed MIME content types for attachment uploads.
+ * We check the declared content-type; no magic-byte sniffing needed for the
+ * proof-of-work, but we do reject anything not in this list.
+ */
+const ALLOWED_CONTENT_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/json',
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_BYTES },
+  fileFilter(_req, file, cb) {
+    if (ALLOWED_CONTENT_TYPES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`unsupported content type: ${file.mimetype}`));
+    }
+  },
+});
 
 function parsePositiveInt(value: unknown, fallback: number): number {
   const n = Number(value);
@@ -106,6 +138,63 @@ export function createNotesRouter(store: NoteStore): Router {
       return;
     }
     res.status(204).end();
+  });
+
+  // --- Attachment endpoints ---
+
+  router.get('/:id/attachments', (req: Request, res: Response) => {
+    const metas = store.listAttachments(req.params.id);
+    if (!metas) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    res.json(metas);
+  });
+
+  router.post(
+    '/:id/attachments',
+    (req: Request, res: Response, next) => {
+      // Verify note existence before parsing the multipart body — gives an
+      // immediate 404 without consuming upload bytes for a missing note.
+      if (!store.get(req.params.id)) {
+        res.status(404).json({ error: 'not found' });
+        return;
+      }
+      next();
+    },
+    upload.single('file'),
+    (req: Request, res: Response) => {
+      if (!req.file) {
+        res.status(400).json({ error: 'file field is required' });
+        return;
+      }
+      const meta = store.addAttachment(req.params.id, {
+        filename: req.file.originalname,
+        contentType: req.file.mimetype,
+        data: req.file.buffer,
+      });
+      if (!meta) {
+        // Note was deleted between the pre-check and store write — treat as 404
+        res.status(404).json({ error: 'not found' });
+        return;
+      }
+      res.status(201).json(meta);
+    },
+  );
+
+  router.get('/:id/attachments/:name', (req: Request, res: Response) => {
+    // The key lookup goes through sanitiseFilename internally — client cannot
+    // control the storage path.
+    const att = store.getAttachment(req.params.id, req.params.name);
+    if (!att) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    res.set('Content-Type', att.contentType);
+    res.set('Content-Disposition', `attachment; filename="${att.filename}"`);
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Length', String(att.size));
+    res.send(att.data);
   });
 
   return router;
