@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 /**
  * Rate-limiting e2e spec.
  *
- * The playwright.config.ts starts the server with RATE_LIMIT_MAX=5 and
+ * The playwright.config.ts starts the server with RATE_LIMIT_MAX=15 and
  * RATE_LIMIT_WINDOW_MS=3000 so this spec completes quickly and the 3-second
  * window resets before other specs that share the server are affected.
  *
@@ -14,15 +14,21 @@ import { test, expect } from '@playwright/test';
 /**
  * Max requests per window as configured on the server under test.
  * Must match the RATE_LIMIT_MAX value forwarded to the webServer in
- * playwright.config.ts (default: 100).
+ * playwright.config.ts (default: 15).
  */
-const SERVER_RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? '100');
+const SERVER_RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? '15');
+if (!Number.isFinite(SERVER_RATE_LIMIT_MAX) || SERVER_RATE_LIMIT_MAX <= 0) {
+  throw new Error(`Invalid RATE_LIMIT_MAX: ${process.env.RATE_LIMIT_MAX}`);
+}
 /**
  * Window duration in ms as configured on the server under test.
  * Must match the RATE_LIMIT_WINDOW_MS value forwarded to the webServer in
  * playwright.config.ts (default: 3000).
  */
 const SERVER_RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? '3000');
+if (!Number.isFinite(SERVER_RATE_LIMIT_WINDOW_MS) || SERVER_RATE_LIMIT_WINDOW_MS <= 0) {
+  throw new Error(`Invalid RATE_LIMIT_WINDOW_MS: ${process.env.RATE_LIMIT_WINDOW_MS}`);
+}
 
 const BASE_URL = 'http://localhost:3000';
 

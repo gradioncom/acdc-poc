@@ -30,12 +30,16 @@ export default defineConfig({
       // Use a tight window for e2e so the rate-limit spec runs quickly and the
       // window resets before other specs are affected.  Override via env var if
       // the production defaults are needed.
-      // 100 req / 3 s: high enough that browser-driven UI tests (which are
-      // inherently slow) never approach the limit, while keeping the window
-      // short enough that the rate-limit spec's afterAll only needs to wait
-      // ~3 seconds for the window to expire before other specs resume.
+      // 15 req / 3 s: low enough that the rate-limit spec only needs 16 sequential
+      // API calls to trip the limit — well within the 3-second window even on a
+      // slow CI runner (~30 ms/req × 16 = ~480 ms, far below the 3 s budget).
+      // High enough that browser-driven UI tests (which are inherently slow — each
+      // user action waits for rendering) will not approach 15 API calls within any
+      // 3-second slice.  With the original 100 req / 3 s budget, 101 sequential
+      // requests could straddle the window boundary on a loaded runner and
+      // cause flaky 2xx instead of 429.
       // Override via env vars when needed.
-      RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX ?? '100',
+      RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX ?? '15',
       RATE_LIMIT_WINDOW_MS: process.env.RATE_LIMIT_WINDOW_MS ?? '3000',
     },
   },

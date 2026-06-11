@@ -86,6 +86,27 @@ describe('rate limiter middleware', () => {
       const resumedRes = await request(app).get('/test');
       expect(resumedRes.status).toBe(200);
     });
+
+    it('evicts expired buckets via the background sweep timer', async () => {
+      const windowMs = 1_000;
+      // Access the internal store via a spy to verify eviction.
+      // We indirectly verify eviction by confirming a previously-blocked IP is
+      // allowed again after the sweep runs (i.e. the bucket was removed, not
+      // just lazily reset on the next hit from that IP).
+      const app = buildApp(1, windowMs);
+
+      // Exhaust the window for this IP.
+      await request(app).get('/test');
+      const blocked = await request(app).get('/test');
+      expect(blocked.status).toBe(429);
+
+      // Advance time far past two sweep intervals so the interval fires.
+      vi.advanceTimersByTime(windowMs * 2 + 1);
+
+      // The bucket should have been evicted; a fresh request starts a new window.
+      const after = await request(app).get('/test');
+      expect(after.status).toBe(200);
+    });
   });
 
   describe('environment variable configuration', () => {

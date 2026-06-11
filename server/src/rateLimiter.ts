@@ -16,7 +16,7 @@ export interface RateLimiterOptions {
   max: number;
   /** Sliding-window duration in milliseconds. Defaults to RATE_LIMIT_WINDOW_MS env var or 60000. */
   windowMs: number;
-  /** Paths that are completely exempt from rate limiting (exact prefix match). */
+  /** Paths that are completely exempt from rate limiting (exact match against req.path). */
   exemptPaths?: string[];
 }
 
@@ -47,6 +47,13 @@ export function defaultOptions(): RateLimiterOptions {
  *
  * The store resets on server restart (in-memory only, no external service).
  * `GET /api/health` (and any other path listed in `exemptPaths`) is exempt.
+ *
+ * **Deployment note — trust proxy:** `req.ip` resolves to the remote socket
+ * address by default.  When the server is deployed behind a reverse proxy or
+ * load balancer, call `app.set('trust proxy', <hops>)` so Express reads the
+ * real client IP from `X-Forwarded-For`.  Only trust the number of proxy hops
+ * you control; trusting all forwarded headers lets clients spoof IPs and bypass
+ * the limit (or pollute the store with arbitrary keys).
  */
 export function createRateLimiter(
   opts: Partial<RateLimiterOptions> = {},
@@ -54,6 +61,18 @@ export function createRateLimiter(
   const { max, windowMs, exemptPaths } = { ...defaultOptions(), ...opts };
   const exempt = new Set(exemptPaths ?? []);
   const store = new Map<string, Bucket>();
+
+  // Periodically evict expired buckets so the map cannot grow unbounded.
+  // An IP that makes one request and never returns would otherwise leave its
+  // bucket in memory for the lifetime of the process.
+  const sweep = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, b] of store) {
+      if (now - b.windowStart >= windowMs) store.delete(ip);
+    }
+  }, windowMs);
+  // Don't keep the Node.js process alive just for the sweep timer.
+  sweep.unref?.();
 
   return function rateLimiter(req: Request, res: Response, next: NextFunction): void {
     // Skip exempt paths.

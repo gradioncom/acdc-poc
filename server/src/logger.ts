@@ -7,18 +7,27 @@ import { type Request, type Response, type NextFunction } from 'express';
  */
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
+  let logged = false;
 
-  res.on('finish', () => {
-    if (process.env.NODE_ENV === 'test') return;
+  // Log exactly once regardless of whether the response completed normally
+  // ('finish') or the client disconnected before the response was fully sent
+  // ('close').  Without 'close', aborted requests are silently missed.
+  const log = (): void => {
+    if (logged || process.env.NODE_ENV === 'test') return;
+    logged = true;
     const ms = Date.now() - start;
-    const entry = {
-      method: req.method,
-      path: req.path,
-      status: res.statusCode,
-      ms,
-    };
-    console.log(JSON.stringify(entry));
-  });
+    console.log(
+      JSON.stringify({
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        ms,
+      }),
+    );
+  };
+
+  res.once('finish', log);
+  res.once('close', log);
 
   next();
 }
