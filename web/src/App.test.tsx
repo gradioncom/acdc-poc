@@ -4,14 +4,22 @@ import userEvent from '@testing-library/user-event';
 import { App } from './App';
 import { listNotes } from './api';
 
-type MockNote = { id: string; title: string; body: string; tags: string[]; pinned: boolean };
+type MockNote = {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  pinned: boolean;
+  archived: boolean;
+};
 
-function buildResponse(notes: MockNote[], page = 1, pageSize = 5) {
+function buildResponse(notes: MockNote[], page = 1, pageSize = 5, archived = false) {
+  const filtered = notes.filter((n) => n.archived === archived);
   const start = (page - 1) * pageSize;
-  const items = notes.slice(start, start + pageSize);
+  const items = filtered.slice(start, start + pageSize);
   return new Response(JSON.stringify(items), {
     status: 200,
-    headers: { 'X-Total-Count': String(notes.length) },
+    headers: { 'X-Total-Count': String(filtered.length) },
   });
 }
 
@@ -96,6 +104,16 @@ function mockFetchSequence() {
         return new Response(JSON.stringify(notes[idx]), { status: 200 });
       }
 
+      if (init?.method === 'PATCH' && /\/api\/notes\/[^/]+\/archive$/.test(urlStr)) {
+        const noteId = urlStr.split('/').at(-2) ?? '';
+        const idx = notes.findIndex((n) => n.id === noteId);
+        if (idx === -1) {
+          return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+        }
+        notes[idx] = { ...notes[idx], archived: !notes[idx].archived };
+        return new Response(JSON.stringify(notes[idx]), { status: 200 });
+      }
+
       // POST /api/notes/:id/duplicate
       if (init?.method === 'POST' && /\/api\/notes\/[^/]+\/duplicate$/.test(urlStr)) {
         const noteId = urlStr.split('/').at(-2) ?? '';
@@ -109,6 +127,7 @@ function mockFetchSequence() {
           body: source.body,
           tags: [...source.tags],
           pinned: false,
+          archived: false,
         };
         notes.push(copy);
         return new Response(JSON.stringify(copy), { status: 201 });
@@ -126,6 +145,7 @@ function mockFetchSequence() {
           body: b.body,
           tags: b.tags ?? [],
           pinned: false,
+          archived: false,
         };
         notes.push(n);
         return new Response(JSON.stringify(n), { status: 201 });
@@ -157,16 +177,18 @@ function mockFetchSequence() {
         notes = notes.filter((n) => n.id !== id);
         return new Response(null, { status: 204 });
       }
-      // Parse page/pageSize/q/tag from URL
+      // Parse page/pageSize/q/tag/archived from URL
       const urlObj = new URL(urlStr, 'http://localhost');
       const page = Number(urlObj.searchParams.get('page') ?? '1');
       const pageSize = Number(urlObj.searchParams.get('pageSize') ?? '5');
       const q = urlObj.searchParams.get('q') ?? '';
       const tagParam = urlObj.searchParams.get('tag') ?? '';
+      const archivedParam = urlObj.searchParams.get('archived') === 'true';
       const term = q.trim().toLowerCase();
       const tagTerm = tagParam.trim().toLowerCase();
       const filtered = notes.filter(
         (n) =>
+          n.archived === archivedParam &&
           (term === '' ||
             n.title.toLowerCase().includes(term) ||
             n.body.toLowerCase().includes(term)) &&
@@ -259,14 +281,21 @@ describe('App', () => {
 
   it('disables Previous on page 1 and enables Next when there are multiple pages', async () => {
     // Pre-populate with 6 notes via mock so total > pageSize (5)
-    let notes: Array<{ id: string; title: string; body: string; tags: string[]; pinned: boolean }> =
-      Array.from({ length: 6 }, (_, i) => ({
-        id: String(i + 1),
-        title: `Note ${i + 1}`,
-        body: `Body ${i + 1}`,
-        tags: [],
-        pinned: false,
-      }));
+    let notes: Array<{
+      id: string;
+      title: string;
+      body: string;
+      tags: string[];
+      pinned: boolean;
+      archived: boolean;
+    }> = Array.from({ length: 6 }, (_, i) => ({
+      id: String(i + 1),
+      title: `Note ${i + 1}`,
+      body: `Body ${i + 1}`,
+      tags: [],
+      pinned: false,
+      archived: false,
+    }));
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
@@ -303,6 +332,7 @@ describe('App', () => {
       body: `body ${i + 1}`,
       tags: [] as string[],
       pinned: false,
+      archived: false,
     }));
     const notes = [...initialNotes];
     let nextId = initialNotes.length + 1;
@@ -321,6 +351,7 @@ describe('App', () => {
             body: b.body,
             tags: b.tags ?? [],
             pinned: false,
+            archived: false,
           };
           notes.push(n);
           return new Response(JSON.stringify(n), { status: 201 });
@@ -353,6 +384,7 @@ describe('App', () => {
       body: `Body ${i + 1}`,
       tags: [] as string[],
       pinned: false,
+      archived: false,
     }));
     vi.stubGlobal(
       'fetch',
@@ -593,6 +625,7 @@ describe('App — pin', () => {
       body: `body ${i + 1}`,
       tags: [] as string[],
       pinned: false,
+      archived: false,
     }));
     const notes = initialNotes.map((n) => ({ ...n }));
     vi.stubGlobal(
@@ -1037,5 +1070,98 @@ describe('App — duplicate', () => {
     await waitFor(() => expect(screen.getByText('Source EDITED')).toBeInTheDocument());
     // The copy should still have its original title
     expect(screen.getByText('Copy of Source')).toBeInTheDocument();
+  });
+});
+
+describe('App — archive', () => {
+  beforeEach(() => mockFetchSequence());
+
+  it('shows an Archive button for each active note', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Archive me');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Archive me')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: /^archive archive me$/i })).toBeInTheDocument();
+  });
+
+  it('archiving a note removes it from the active list', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'To Archive');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('To Archive')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: /^archive to archive$/i }));
+    await waitFor(() => expect(screen.queryByText('To Archive')).not.toBeInTheDocument());
+  });
+
+  it('shows Archived notes view toggle button', async () => {
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /show archived notes/i })).toBeInTheDocument(),
+    );
+  });
+
+  it('clicking the archived toggle shows archived notes and Unarchive button', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Will Archive');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Will Archive')).toBeInTheDocument());
+
+    // Archive the note
+    await userEvent.click(screen.getByRole('button', { name: /^archive will archive$/i }));
+    await waitFor(() => expect(screen.queryByText('Will Archive')).not.toBeInTheDocument());
+
+    // Switch to archived view
+    await userEvent.click(screen.getByRole('button', { name: /show archived notes/i }));
+    await waitFor(() => expect(screen.getByText('Will Archive')).toBeInTheDocument());
+
+    // Should show Unarchive button in archived view
+    expect(screen.getByRole('button', { name: /^unarchive will archive$/i })).toBeInTheDocument();
+  });
+
+  it('unarchiving a note from the archived view removes it from the archived list', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Unarchive me');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Unarchive me')).toBeInTheDocument());
+
+    // Archive it
+    await userEvent.click(screen.getByRole('button', { name: /^archive unarchive me$/i }));
+    await waitFor(() => expect(screen.queryByText('Unarchive me')).not.toBeInTheDocument());
+
+    // Switch to archived view
+    await userEvent.click(screen.getByRole('button', { name: /show archived notes/i }));
+    await waitFor(() => expect(screen.getByText('Unarchive me')).toBeInTheDocument());
+
+    // Unarchive it
+    await userEvent.click(screen.getByRole('button', { name: /^unarchive unarchive me$/i }));
+    await waitFor(() => expect(screen.queryByText('Unarchive me')).not.toBeInTheDocument());
+  });
+
+  it('archived notes do not appear in active view search results', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Searchable active');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Searchable active')).toBeInTheDocument());
+
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Searchable archived');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Searchable archived')).toBeInTheDocument());
+
+    // Archive the second note
+    await userEvent.click(screen.getByRole('button', { name: /^archive searchable archived$/i }));
+    await waitFor(() => expect(screen.queryByText('Searchable archived')).not.toBeInTheDocument());
+
+    // Search for "Searchable" — should only find the active one
+    await userEvent.type(screen.getByRole('textbox', { name: /search notes/i }), 'Searchable');
+    await waitFor(() => expect(screen.queryByText('Searchable archived')).not.toBeInTheDocument());
+    expect(screen.getByText('Searchable active')).toBeInTheDocument();
   });
 });

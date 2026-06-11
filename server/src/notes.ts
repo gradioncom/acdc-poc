@@ -76,7 +76,13 @@ export function createNotesRouter(store: NoteStore): Router {
     const pageSize = parsePositiveInt(req.query.pageSize, 10);
     const q = typeof req.query.q === 'string' ? req.query.q : undefined;
     const tag = typeof req.query.tag === 'string' ? req.query.tag : undefined;
-    const result = store.list(page, pageSize, q, tag);
+    const archivedParam = req.query.archived;
+    if (archivedParam !== undefined && archivedParam !== 'true' && archivedParam !== 'false') {
+      res.status(400).json({ error: 'archived must be "true" or "false"' });
+      return;
+    }
+    const archived = archivedParam === 'true';
+    const result = store.list(page, pageSize, q, tag, archived);
     res.set('X-Total-Count', String(result.total));
     res.json(result.items);
   });
@@ -168,6 +174,15 @@ export function createNotesRouter(store: NoteStore): Router {
 
   router.patch('/:id/pin', (req: Request, res: Response) => {
     const note = store.togglePin(req.params.id);
+    if (!note) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    res.json(note);
+  });
+
+  router.patch('/:id/archive', (req: Request, res: Response) => {
+    const note = store.toggleArchive(req.params.id);
     if (!note) {
       res.status(404).json({ error: 'not found' });
       return;

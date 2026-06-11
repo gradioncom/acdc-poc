@@ -147,7 +147,14 @@ describe('ToastContainer', () => {
 import { App } from './App';
 import { listNotes } from './api';
 
-type MockNote = { id: string; title: string; body: string; tags: string[]; pinned: boolean };
+type MockNote = {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  pinned: boolean;
+  archived: boolean;
+};
 
 function mockFetchSequence() {
   let notes: MockNote[] = [];
@@ -166,6 +173,15 @@ function mockFetchSequence() {
         notes[idx] = { ...notes[idx], pinned: !notes[idx].pinned };
         return new Response(JSON.stringify(notes[idx]), { status: 200 });
       }
+      if (init?.method === 'PATCH' && /\/api\/notes\/[^/]+\/archive$/.test(urlStr)) {
+        const noteId = urlStr.split('/').at(-2) ?? '';
+        const idx = notes.findIndex((n) => n.id === noteId);
+        if (idx === -1) {
+          return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+        }
+        notes[idx] = { ...notes[idx], archived: !notes[idx].archived };
+        return new Response(JSON.stringify(notes[idx]), { status: 200 });
+      }
       if (init?.method === 'POST') {
         const b = JSON.parse(String(init.body)) as {
           title: string;
@@ -178,6 +194,7 @@ function mockFetchSequence() {
           body: b.body,
           tags: b.tags ?? [],
           pinned: false,
+          archived: false,
         };
         notes.push(n);
         return new Response(JSON.stringify(n), { status: 201 });
@@ -214,12 +231,14 @@ function mockFetchSequence() {
       const page = Number(urlObj.searchParams.get('page') ?? '1');
       const pageSize = Number(urlObj.searchParams.get('pageSize') ?? '5');
       const q = urlObj.searchParams.get('q') ?? '';
+      const archivedParam = urlObj.searchParams.get('archived') === 'true';
       const term = q.trim().toLowerCase();
       const filtered = notes.filter(
         (n) =>
-          term === '' ||
-          n.title.toLowerCase().includes(term) ||
-          n.body.toLowerCase().includes(term),
+          n.archived === archivedParam &&
+          (term === '' ||
+            n.title.toLowerCase().includes(term) ||
+            n.body.toLowerCase().includes(term)),
       );
       const start = (page - 1) * pageSize;
       const items = filtered.slice(start, start + pageSize);

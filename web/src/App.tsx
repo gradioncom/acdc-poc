@@ -7,6 +7,7 @@ import {
   duplicateNote,
   listAttachments,
   listNotes,
+  toggleArchive,
   togglePin,
   updateNote,
   uploadAttachment,
@@ -53,6 +54,7 @@ export function App() {
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
   /** noteId → list of attachment metadata (loaded lazily on expand). */
   const [attachments, setAttachments] = useState<Record<string, AttachmentMeta[]>>({});
   /** noteId → true while attachments panel is open. */
@@ -70,10 +72,10 @@ export function App() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  async function refresh(p = page, q = query, tf = tagFilter) {
+  async function refresh(p = page, q = query, tf = tagFilter, archived = showArchived) {
     const seq = ++reqSeqRef.current;
     try {
-      const result = await listNotes(p, PAGE_SIZE, q, tf);
+      const result = await listNotes(p, PAGE_SIZE, q, tf, archived);
       if (seq !== reqSeqRef.current) return; // stale — a newer request is in flight
       setNotes(result.notes);
       setTotal(result.total);
@@ -84,9 +86,9 @@ export function App() {
   }
 
   useEffect(() => {
-    void refresh(page, query, tagFilter);
+    void refresh(page, query, tagFilter, showArchived);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, query, tagFilter]);
+  }, [page, query, tagFilter, showArchived]);
 
   // Debounce search input: update `query` after SEARCH_DEBOUNCE_MS of inactivity.
   // Reset to page 1 whenever the query changes so results are always from the start.
@@ -225,6 +227,19 @@ export function App() {
     }
   }
 
+  async function onToggleArchive(id: string, currentlyArchived: boolean) {
+    try {
+      await toggleArchive(id);
+      setError(null);
+      addToast(currentlyArchived ? 'Note unarchived' : 'Note archived', 'success');
+      // Note moves between the two views — just refresh the current view
+      await refresh(page);
+    } catch (e) {
+      addToast('Failed to toggle archive', 'error');
+      setError(String(e));
+    }
+  }
+
   async function onDeleteAttachment(noteId: string, filename: string) {
     if (!window.confirm(`Delete attachment "${filename}"?`)) return;
     try {
@@ -317,6 +332,16 @@ export function App() {
             }}
           />
         </label>
+        <Button
+          variant="secondary"
+          aria-label={showArchived ? 'Show active notes' : 'Show archived notes'}
+          onClick={() => {
+            setPage(1);
+            setShowArchived((v) => !v);
+          }}
+        >
+          {showArchived ? 'Active notes' : 'Archived notes'}
+        </Button>
       </div>
 
       {/* Create-note form */}
@@ -426,20 +451,31 @@ export function App() {
                 </div>
               )}
               <div className={styles.noteActions}>
+                {!n.archived && (
+                  <Button
+                    variant="secondary"
+                    aria-label={n.pinned ? `Unpin ${n.title}` : `Pin ${n.title}`}
+                    onClick={() => void onTogglePin(n.id, n.pinned)}
+                  >
+                    {n.pinned ? 'Unpin' : 'Pin'}
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
-                  aria-label={n.pinned ? `Unpin ${n.title}` : `Pin ${n.title}`}
-                  onClick={() => void onTogglePin(n.id, n.pinned)}
+                  aria-label={n.archived ? `Unarchive ${n.title}` : `Archive ${n.title}`}
+                  onClick={() => void onToggleArchive(n.id, n.archived)}
                 >
-                  {n.pinned ? 'Unpin' : 'Pin'}
+                  {n.archived ? 'Unarchive' : 'Archive'}
                 </Button>
-                <Button
-                  variant="secondary"
-                  aria-label={`Edit ${n.title}`}
-                  onClick={() => onEditStart(n)}
-                >
-                  Edit
-                </Button>
+                {!n.archived && (
+                  <Button
+                    variant="secondary"
+                    aria-label={`Edit ${n.title}`}
+                    onClick={() => onEditStart(n)}
+                  >
+                    Edit
+                  </Button>
+                )}
                 <Button
                   variant="danger"
                   aria-label={`Delete ${n.title}`}
@@ -447,20 +483,24 @@ export function App() {
                 >
                   Delete
                 </Button>
-                <Button
-                  variant="secondary"
-                  aria-label={`Duplicate ${n.title}`}
-                  onClick={() => void onDuplicate(n.id)}
-                >
-                  Duplicate
-                </Button>
-                <Button
-                  variant="secondary"
-                  aria-label={`Attachments for ${n.title}`}
-                  onClick={() => void onToggleAttachments(n.id)}
-                >
-                  {attachmentsOpen[n.id] ? 'Hide attachments' : 'Attachments'}
-                </Button>
+                {!n.archived && (
+                  <Button
+                    variant="secondary"
+                    aria-label={`Duplicate ${n.title}`}
+                    onClick={() => void onDuplicate(n.id)}
+                  >
+                    Duplicate
+                  </Button>
+                )}
+                {!n.archived && (
+                  <Button
+                    variant="secondary"
+                    aria-label={`Attachments for ${n.title}`}
+                    onClick={() => void onToggleAttachments(n.id)}
+                  >
+                    {attachmentsOpen[n.id] ? 'Hide attachments' : 'Attachments'}
+                  </Button>
+                )}
               </div>
               {attachmentsOpen[n.id] && (
                 <div
