@@ -1,3 +1,7 @@
+/** Fixed palette of named color labels. */
+export const NOTE_COLORS = ['none', 'red', 'yellow', 'green', 'blue', 'purple'] as const;
+export type NoteColor = (typeof NOTE_COLORS)[number];
+
 export interface Note {
   id: string;
   title: string;
@@ -5,6 +9,7 @@ export interface Note {
   tags: string[];
   createdAt: number;
   pinned: boolean;
+  color: NoteColor;
 }
 
 export interface Attachment {
@@ -41,7 +46,7 @@ export class NoteStore {
   private readonly attachments = new Map<string, Attachment>();
   private seq = 0;
 
-  create(input: { title: string; body: string; tags?: string[] }): Note {
+  create(input: { title: string; body: string; tags?: string[]; color?: NoteColor }): Note {
     this.seq += 1;
     const note: Note = {
       id: String(this.seq),
@@ -52,6 +57,7 @@ export class NoteStore {
       // not a wall-clock timestamp (keeps pagination deterministic in tests)
       createdAt: this.seq,
       pinned: false,
+      color: input.color ?? 'none',
     };
     this.notes.set(note.id, note);
     return note;
@@ -61,7 +67,10 @@ export class NoteStore {
     return this.notes.get(id);
   }
 
-  update(id: string, input: { title?: string; body?: string; tags?: string[] }): Note | undefined {
+  update(
+    id: string,
+    input: { title?: string; body?: string; tags?: string[]; color?: NoteColor },
+  ): Note | undefined {
     const existing = this.notes.get(id);
     if (!existing) return undefined;
     const updated: Note = {
@@ -69,15 +78,16 @@ export class NoteStore {
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.body !== undefined ? { body: input.body } : {}),
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      ...(input.color !== undefined ? { color: input.color } : {}),
     };
     this.notes.set(id, updated);
     return updated;
   }
 
   /**
-   * Duplicate an existing note: copies title (prefixed "Copy of …"), body, and
-   * tags into a brand-new note.  The duplicate gets its own id and createdAt
-   * timestamp, is not pinned, and does not inherit any attachments.
+   * Duplicate an existing note: copies title (prefixed "Copy of …"), body,
+   * tags, and color into a brand-new note.  The duplicate gets its own id and
+   * createdAt timestamp, is not pinned, and does not inherit any attachments.
    * Returns undefined when the source note does not exist.
    */
   duplicate(id: string): Note | undefined {
@@ -87,6 +97,7 @@ export class NoteStore {
       title: `Copy of ${source.title}`,
       body: source.body,
       tags: [...source.tags],
+      color: source.color,
     });
   }
 

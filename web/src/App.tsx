@@ -14,11 +14,13 @@ import {
   duplicateNote,
   listAttachments,
   listNotes,
+  NOTE_COLORS,
   togglePin,
   updateNote,
   uploadAttachments,
   type AttachmentMeta,
   type Note,
+  type NoteColor,
   type SortOrder,
 } from './api';
 import { Button } from './components/Button';
@@ -53,6 +55,7 @@ export function App() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [tagsInput, setTagsInput] = useState('');
+  const [color, setColor] = useState<NoteColor>('none');
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -60,6 +63,7 @@ export function App() {
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
   const [editTagsInput, setEditTagsInput] = useState('');
+  const [editColor, setEditColor] = useState<NoteColor>('none');
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
@@ -148,10 +152,11 @@ export function App() {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return;
     try {
-      const created = await createNote({ title, body, tags: parseTags(tagsInput) });
+      const created = await createNote({ title, body, tags: parseTags(tagsInput), color });
       setTitle('');
       setBody('');
       setTagsInput('');
+      setColor('none');
       setError(null);
       addToast('Note created', 'success');
       // Clear both active filters before navigating so the new note is always
@@ -188,6 +193,7 @@ export function App() {
     setEditTitle(note.title);
     setEditBody(note.body);
     setEditTagsInput(note.tags.join(', '));
+    setEditColor(note.color);
   }
 
   function onEditCancel() {
@@ -195,16 +201,23 @@ export function App() {
     setEditTitle('');
     setEditBody('');
     setEditTagsInput('');
+    setEditColor('none');
   }
 
   async function onEditSave(id: string) {
     if (!editTitle.trim() || !editBody.trim()) return;
     try {
-      await updateNote(id, { title: editTitle, body: editBody, tags: parseTags(editTagsInput) });
+      await updateNote(id, {
+        title: editTitle,
+        body: editBody,
+        tags: parseTags(editTagsInput),
+        color: editColor,
+      });
       setEditingId(null);
       setEditTitle('');
       setEditBody('');
       setEditTagsInput('');
+      setEditColor('none');
       setError(null);
       addToast('Note updated', 'success');
       await refresh(page);
@@ -481,6 +494,21 @@ export function App() {
               onChange={(e) => setTagsInput(e.target.value)}
             />
           </label>
+          <div className={styles.fieldLabel} role="group" aria-label="Color">
+            Color
+            <div className={styles.colorPicker}>
+              {NOTE_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Color ${c}`}
+                  aria-pressed={color === c}
+                  className={`${styles.colorSwatch} ${styles[`swatch-${c}`]} ${color === c ? styles.colorSwatchSelected : ''}`}
+                  onClick={() => setColor(c)}
+                />
+              ))}
+            </div>
+          </div>
           <div className={styles.formActions}>
             <Button type="submit" variant="primary">
               Add note
@@ -556,6 +584,21 @@ export function App() {
                       onChange={(e) => setEditTagsInput(e.target.value)}
                     />
                   </label>
+                  <div className={styles.fieldLabel} role="group" aria-label="Edit color">
+                    Color
+                    <div className={styles.colorPicker}>
+                      {NOTE_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          aria-label={`Color ${c}`}
+                          aria-pressed={editColor === c}
+                          className={`${styles.colorSwatch} ${styles[`swatch-${c}`]} ${editColor === c ? styles.colorSwatchSelected : ''}`}
+                          onClick={() => setEditColor(c)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                   <div className={styles.noteActions}>
                     <Button variant="primary" onClick={() => void onEditSave(n.id)}>
                       Save
@@ -567,7 +610,11 @@ export function App() {
                 </div>
               </li>
             ) : (
-              <li key={n.id} className={styles.noteCard}>
+              <li
+                key={n.id}
+                className={`${styles.noteCard} ${n.color !== 'none' ? styles[`card-${n.color}`] : ''}`}
+                data-color={n.color}
+              >
                 <div className={styles.noteHeader}>
                   <span className={styles.noteTitle}>{n.title}</span>
                   {n.pinned && (
