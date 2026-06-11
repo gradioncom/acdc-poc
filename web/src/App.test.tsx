@@ -466,6 +466,23 @@ describe('App', () => {
     await waitFor(() => expect(screen.queryByText('Unique note')).not.toBeInTheDocument());
   });
 
+  it('shows "no notes match your search" when filter is active but no results match', async () => {
+    render(<App />);
+
+    await userEvent.type(screen.getByLabelText(/^title$/i), 'Filter test note');
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'some body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Filter test note')).toBeInTheDocument());
+
+    // Search for something that won't match — should show filter-specific message, not the CTA
+    await userEvent.type(screen.getByRole('textbox', { name: /search notes/i }), 'zzznomatch');
+    await waitFor(() =>
+      expect(screen.getByText(/no notes match your search/i)).toBeInTheDocument(),
+    );
+    // The "Add your first note" CTA must NOT appear when notes exist but filter has no results
+    expect(screen.queryByRole('button', { name: /add your first note/i })).not.toBeInTheDocument();
+  });
+
   it('creating a note while a search is active clears the search and shows the new note', async () => {
     render(<App />);
 

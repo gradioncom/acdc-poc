@@ -12,7 +12,9 @@ import {
   type Note,
 } from './api';
 import { Button } from './components/Button';
+import { ToastContainer } from './ToastContainer';
 import { useTheme } from './useTheme';
+import { useToast } from './useToast';
 import styles from './App.module.css';
 
 const PAGE_SIZE = 5;
@@ -32,6 +34,7 @@ function parseTags(raw: string): string[] {
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
+  const { toasts, addToast, dismissToast } = useToast();
   const [notes, setNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -53,7 +56,9 @@ export function App() {
   /** noteId → upload error string. */
   const [uploadError, setUploadError] = useState<Record<string, string | null>>({});
 
-  const [loading, setLoading] = useState(false);
+  // True only on the very first load — gates the skeleton so background
+  // refreshes after mutations do not flash the whole list.
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Monotonically increasing counter; each refresh call captures its own id
   // and only applies its result if no newer request has been issued since.
@@ -63,23 +68,25 @@ export function App() {
   // directly in that case).
   const skipDebouncePageResetRef = useRef(false);
 
+  // Ref for the title input so the empty-state CTA can focus it idiomatically.
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   async function refresh(p = page, q = query, tf = tagFilter) {
     const seq = ++reqSeqRef.current;
-    setLoading(true);
     try {
       const result = await listNotes(p, PAGE_SIZE, q, tf);
       if (seq !== reqSeqRef.current) return; // stale — a newer request is in flight
       setNotes(result.notes);
       setTotal(result.total);
       setError(null);
-    } catch (e) {
+    } catch (e: unknown) {
       if (seq !== reqSeqRef.current) return;
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = e instanceof Error ? e.message : 'An unexpected error occurred';
       setError(msg);
     } finally {
-      if (seq === reqSeqRef.current) setLoading(false);
+      if (seq === reqSeqRef.current) setInitialLoading(false);
     }
   }
 
@@ -111,6 +118,7 @@ export function App() {
       setBody('');
       setTagsInput('');
       setError(null);
+      addToast('Note created', 'success');
       // If a search filter is active, clear it before navigating so the new
       // note is always visible. With a filter active, `total` reflects only
       // the filtered count; the new note may not match the query, so
@@ -133,7 +141,8 @@ export function App() {
       } else {
         setPage(lastPage);
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      addToast('Failed to create note', 'error');
       setError(e instanceof Error ? e.message : 'An unexpected error occurred');
     }
   }
@@ -161,8 +170,10 @@ export function App() {
       setEditBody('');
       setEditTagsInput('');
       setError(null);
+      addToast('Note updated', 'success');
       await refresh(page);
-    } catch (e) {
+    } catch (e: unknown) {
+      addToast('Failed to update note', 'error');
       setError(e instanceof Error ? e.message : 'An unexpected error occurred');
     }
   }
@@ -177,7 +188,7 @@ export function App() {
     try {
       const metas = await listAttachments(id);
       setAttachments((prev) => ({ ...prev, [id]: metas }));
-    } catch (e) {
+    } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'An unexpected error occurred');
     }
   }
@@ -192,7 +203,7 @@ export function App() {
       await uploadAttachment(id, file);
       const metas = await listAttachments(id);
       setAttachments((prev) => ({ ...prev, [id]: metas }));
-    } catch (err) {
+    } catch (err: unknown) {
       setUploadError((prev) => ({
         ...prev,
         [id]: err instanceof Error ? err.message : 'An unexpected error occurred',
@@ -204,6 +215,7 @@ export function App() {
     try {
       await togglePin(id);
       setError(null);
+      addToast(currentlyPinned ? 'Note unpinned' : 'Note pinned', 'success');
       if (currentlyPinned) {
         // Unpin: note stays on (or near) the current page — just refresh it.
         await refresh(page);
@@ -217,7 +229,8 @@ export function App() {
           setPage(1);
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      addToast('Failed to toggle pin', 'error');
       setError(e instanceof Error ? e.message : 'An unexpected error occurred');
     }
   }
@@ -226,6 +239,7 @@ export function App() {
     try {
       await deleteNote(id);
       setError(null);
+      addToast('Note deleted', 'success');
       // After deletion the current page may become empty; go back one if needed
       const newTotal = total - 1;
       const newTotalPages = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
@@ -235,10 +249,16 @@ export function App() {
       } else {
         setPage(newPage);
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      addToast('Failed to delete note', 'error');
       setError(e instanceof Error ? e.message : 'An unexpected error occurred');
     }
   }
+
+  // True when there are no notes to show AND no filter is active — i.e. the
+  // store is genuinely empty (not just "no results for this search").
+  const isFilterActive = query !== '' || tagFilter !== '';
+  const showEmptyState = !initialLoading && !error && notes.length === 0;
 
   return (
     <main className={styles.page}>
@@ -295,6 +315,7 @@ export function App() {
           <label className={styles.fieldLabel}>
             Title
             <input
+              ref={titleInputRef}
               className={styles.input}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -326,8 +347,8 @@ export function App() {
         </div>
       </form>
 
-      {/* Loading skeleton */}
-      {loading && (
+      {/* Loading skeleton — only on initial load, not background refresh */}
+      {initialLoading && (
         <ul aria-label="Loading notes" aria-busy="true" className={styles.noteList}>
           {Array.from({ length: 3 }).map((_, i) => (
             <li key={i} className={`${styles.noteCard} ${styles.skeletonCard}`} aria-hidden="true">
@@ -339,23 +360,27 @@ export function App() {
       )}
 
       {/* Empty state */}
-      {!loading && !error && notes.length === 0 && (
+      {showEmptyState && (
         <div className={styles.emptyState} role="status">
-          <p>No notes yet. Create your first note above!</p>
-          <Button
-            variant="primary"
-            onClick={() => {
-              document.querySelector<HTMLInputElement>('form input')?.focus();
-            }}
-            aria-label="Add your first note"
-          >
-            Add your first note
-          </Button>
+          {isFilterActive ? (
+            <p>No notes match your search.</p>
+          ) : (
+            <>
+              <p>No notes yet. Create your first note above!</p>
+              <Button
+                variant="primary"
+                onClick={() => titleInputRef.current?.focus()}
+                aria-label="Add your first note"
+              >
+                Add your first note
+              </Button>
+            </>
+          )}
         </div>
       )}
 
-      {/* Note list */}
-      {!loading && (
+      {/* Note list — always rendered after initial load to avoid flash on mutations */}
+      {!initialLoading && (
         <ul className={styles.noteList} aria-label="Notes list">
           {notes.map((n) =>
             editingId === n.id ? (
@@ -518,6 +543,7 @@ export function App() {
           Next
         </Button>
       </nav>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </main>
   );
 }

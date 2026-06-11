@@ -49,9 +49,10 @@ test('shows a friendly empty-state message when there are no notes', async ({ pa
   // Wait for the debounce + API response that carries the "q=" param
   await page.waitForResponse((r) => r.url().includes('q=') && r.status() === 200);
 
-  // The empty-state message and CTA button must be visible
-  await expect(page.getByText(/no notes yet/i)).toBeVisible();
-  await expect(page.getByRole('button', { name: /add your first note/i })).toBeVisible();
+  // When a search filter is active and there are no matches, show the
+  // filter-specific message (no CTA, since the list isn't actually empty).
+  await expect(page.getByText(/no notes match your search/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /add your first note/i })).not.toBeVisible();
 
   // Clean up: clear the search
   await searchBox.clear();
@@ -106,7 +107,7 @@ test('empty state disappears after creating the first note', async ({ page }) =>
   const searchBox = page.getByRole('textbox', { name: /search notes/i });
   await searchBox.fill(uniqueToken);
   await page.waitForResponse((r) => r.url().includes('q=') && r.status() === 200);
-  await expect(page.getByText(/no notes yet/i)).toBeVisible();
+  await expect(page.getByText(/no notes match your search/i)).toBeVisible();
 
   // Clear the filter and create a note
   await searchBox.clear();
@@ -125,7 +126,7 @@ test('empty state disappears after creating the first note', async ({ page }) =>
   await page.waitForResponse((r) => r.url().includes('q=') && r.status() === 200);
 
   await expect(page.getByRole('listitem').filter({ hasText: newNoteTitle })).toBeVisible();
-  await expect(page.getByText(/no notes yet/i)).not.toBeVisible();
+  await expect(page.getByText(/no notes match your search/i)).not.toBeVisible();
 
   // Clean up: delete the note
   const item = page.getByRole('listitem').filter({ hasText: newNoteTitle });
