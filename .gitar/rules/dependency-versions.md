@@ -1,7 +1,7 @@
 ---
-title: "Trust verified-latest dependency versions"
-description: "Do not flag npm dependency versions as suspicious/non-canonical when they are the real published latest"
-when: "Reviewing a change that adds or bumps an npm dependency, and a finding would be raised solely because the version number looks unfamiliar, non-canonical, or higher than expected"
+title: 'Trust verified-latest dependency versions'
+description: 'Do not flag npm dependency versions as suspicious/non-canonical when they are the real published latest'
+when: 'Reviewing a change that adds or bumps an npm dependency, and a finding would be raised solely because the version number looks unfamiliar, non-canonical, or higher than expected'
 actions: "Suppress that finding. Do not raise a security or supply-chain concern about a dependency version purely on the basis that the version looks unexpected — package maintainers publish new major versions regularly, including after a model's knowledge cutoff."
 ---
 
