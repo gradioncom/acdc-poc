@@ -29,12 +29,15 @@ test('note body renders Markdown headings and lists', async ({ page }) => {
   await expect(item.getByRole('heading', { level: 1, name: 'Main Heading' })).toBeVisible();
   await expect(item.getByRole('heading', { level: 2, name: 'Sub Heading' })).toBeVisible();
 
-  // The list items should be rendered as real <li> elements inside a list
+  // The list items should be rendered as real <li> elements inside a list.
+  // Note: ARIA does not compute the accessible name of <li> from its text
+  // content, so we use locator('li') with hasText rather than getByRole with a
+  // name filter.
   const list = item.getByRole('list').first();
   await expect(list).toBeVisible();
-  await expect(list.getByRole('listitem', { name: 'item one' })).toBeVisible();
-  await expect(list.getByRole('listitem', { name: 'item two' })).toBeVisible();
-  await expect(list.getByRole('listitem', { name: 'item three' })).toBeVisible();
+  await expect(list.locator('li', { hasText: 'item one' })).toBeVisible();
+  await expect(list.locator('li', { hasText: 'item two' })).toBeVisible();
+  await expect(list.locator('li', { hasText: 'item three' })).toBeVisible();
 });
 
 test('note edit form shows raw Markdown source, not rendered HTML', async ({ page }) => {
