@@ -287,6 +287,29 @@ describe('App', () => {
     expect(screen.getByText('Escape test note')).toBeInTheDocument();
   });
 
+  it('pressing Escape in the confirm dialog cancels AND restores focus to the delete trigger', async () => {
+    render(<App />);
+    await userEvent.type(screen.getByLabelText(/title/i), 'Focus restore note');
+    await userEvent.type(screen.getByLabelText(/body/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText('Focus restore note')).toBeInTheDocument());
+
+    // Click the delete button — this is the trigger element focus must return to.
+    const deleteBtn = screen.getByRole('button', { name: /^delete focus restore note$/i });
+    await userEvent.click(deleteBtn);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // Press Escape to cancel.
+    await userEvent.keyboard('{Escape}');
+
+    // Dialog should be gone.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Note still present (not deleted).
+    expect(screen.getByText('Focus restore note')).toBeInTheDocument();
+    // Focus must have returned to the delete trigger, not been blurred.
+    expect(deleteBtn).toHaveFocus();
+  });
+
   it('confirm dialog names the note being deleted', async () => {
     render(<App />);
     await userEvent.type(screen.getByLabelText(/title/i), 'My named note');

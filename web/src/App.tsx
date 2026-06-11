@@ -448,6 +448,13 @@ export function App() {
       searchInputRef.current?.select();
     }, []),
     onEscape: useCallback(() => {
+      // When the delete-confirm dialog is open, its own onKeyDown handler fires
+      // first (React delegation, descendant before document) and calls onCancel,
+      // which restores focus to the delete trigger.  The global handler must not
+      // blur that just-restored focus, so we defer entirely to the dialog.
+      if (pendingDeleteId !== null) {
+        return;
+      }
       if (showHelp) {
         setShowHelp(false);
         return;
@@ -462,7 +469,7 @@ export function App() {
       if (document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
       }
-    }, [showHelp, editingId]),
+    }, [pendingDeleteId, showHelp, editingId]),
     onToggleHelp: useCallback(() => setShowHelp((prev) => !prev), []),
   };
 
