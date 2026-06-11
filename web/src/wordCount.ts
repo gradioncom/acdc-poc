@@ -14,9 +14,10 @@ export function countWords(text: string): number {
 }
 
 /**
- * Count the number of Unicode code points (characters) in `text`.
- * Uses the string iterator which correctly counts surrogate pairs
- * (emoji, CJK supplementary, etc.) as a single character each.
+ * Count the number of Unicode code points in `text`.
+ * Surrogate-pair code points (e.g. 🌍) count as 1, but multi-code-point
+ * grapheme clusters (flags, ZWJ sequences, skin-tone modifiers) count as
+ * more than one.
  */
 export function countChars(text: string): number {
   return [...text].length;

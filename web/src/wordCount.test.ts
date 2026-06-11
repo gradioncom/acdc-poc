@@ -93,8 +93,9 @@ describe('countChars', () => {
     expect(countChars('héllo')).toBe(5);
   });
 
-  it('counts emoji as a single character per grapheme cluster', () => {
-    // 🌍 is a single emoji character (code point U+1F30D)
+  it('counts single-code-point emoji as one character', () => {
+    // 🌍 is a single code point (U+1F30D); multi-code-point grapheme clusters
+    // (flags, ZWJ sequences) count as more than one.
     expect(countChars('🌍')).toBe(1);
   });
 
