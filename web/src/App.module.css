@@ -266,23 +266,23 @@
 
 .card-red {
   border-left: 4px solid #ef4444;
-  background-color: #fef2f2;
+  background-color: var(--color-card-red);
 }
 .card-yellow {
   border-left: 4px solid #eab308;
-  background-color: #fefce8;
+  background-color: var(--color-card-yellow);
 }
 .card-green {
   border-left: 4px solid #22c55e;
-  background-color: #f0fdf4;
+  background-color: var(--color-card-green);
 }
 .card-blue {
   border-left: 4px solid #3b82f6;
-  background-color: #eff6ff;
+  background-color: var(--color-card-blue);
 }
 .card-purple {
   border-left: 4px solid #a855f7;
-  background-color: #faf5ff;
+  background-color: var(--color-card-purple);
 }
 
 /* ── Pagination ──────────────────────────────────────────────── */
