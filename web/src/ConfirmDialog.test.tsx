@@ -109,4 +109,27 @@ describe('ConfirmDialog', () => {
     const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
     expect(document.activeElement).toBe(cancelBtn);
   });
+
+  it('traps focus: Tab from last button wraps to first button', async () => {
+    render(<ConfirmDialog title="Title" message="Msg" onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
+    // Move focus to last button (Confirm).
+    confirmBtn.focus();
+    expect(document.activeElement).toBe(confirmBtn);
+    // Tab should wrap to first button (Cancel).
+    await userEvent.keyboard('{Tab}');
+    expect(document.activeElement).toBe(cancelBtn);
+  });
+
+  it('traps focus: Shift+Tab from first button wraps to last button', async () => {
+    render(<ConfirmDialog title="Title" message="Msg" onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
+    // Focus is already on Cancel (first) via autoFocus.
+    expect(document.activeElement).toBe(cancelBtn);
+    // Shift+Tab should wrap to last button (Confirm).
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(document.activeElement).toBe(confirmBtn);
+  });
 });

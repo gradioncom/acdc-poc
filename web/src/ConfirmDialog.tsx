@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Button } from './components/Button';
 import styles from './ConfirmDialog.module.css';
 
@@ -18,13 +18,17 @@ export interface ConfirmDialogProps {
 }
 
 /**
- * Accessible in-app confirmation dialog.
+ * Accessible in-app confirmation dialog, implementing the ARIA APG modal dialog pattern.
  *
  * Accessibility properties:
  * - `role="dialog"` + `aria-modal="true"` so screen readers treat it as a modal.
  * - `aria-labelledby` points at the visible heading.
  * - The cancel button receives `autoFocus` so focus moves into the dialog on mount.
- * - The Escape key closes the dialog, matching the ARIA APG modal dialog pattern.
+ * - Focus is trapped within the dialog panel: Tab/Shift+Tab cycle between focusable
+ *   elements without escaping into the page behind the backdrop.
+ * - The Escape key closes the dialog.
+ * - Focus returns to the trigger element when the dialog closes (handled by the caller
+ *   via `deleteTriggerRef`).
  */
 export function ConfirmDialog({
   title,
@@ -35,12 +39,28 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const titleId = 'confirm-dialog-title';
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape.
+  // Handle Escape to close and Tab/Shift+Tab to trap focus within the dialog.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         onCancel();
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     }
     document.addEventListener('keydown', handleKeyDown);
@@ -56,6 +76,7 @@ export function ConfirmDialog({
     >
       {/* Stop propagation so clicks inside the panel don't bubble to the backdrop. */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
