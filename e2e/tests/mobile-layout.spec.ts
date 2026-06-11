@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures';
 
 /**
  * Mobile layout e2e — runs at 375 × 812 (iPhone SE / 8 viewport).
@@ -8,6 +8,9 @@ import { test, expect } from '@playwright/test';
  *  2. Key actions — create note, search, view note — complete without
  *     layout breakage.
  *  3. Touch targets (buttons) report a rendered height ≥ 44 px.
+ *
+ * State isolation: imports from `../fixtures` so the in-memory store is
+ * reset before every test via the auto-fixture. No manual cleanup needed.
  */
 
 const MOBILE_VIEWPORT = { width: 375, height: 812 };
