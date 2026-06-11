@@ -39,7 +39,10 @@ test('tag management panel: rename a tag, verify notes updated, then delete it',
   await expect(page.getByRole('region', { name: /tag manager/i })).toBeVisible();
 
   // The tag should appear in the list with count 2
-  await expect(page.getByRole('listitem').filter({ hasText: originalTag })).toBeVisible();
+  const tagManagerPanel = page.getByRole('region', { name: /tag manager/i });
+  await expect(
+    tagManagerPanel.getByRole('listitem').filter({ hasText: originalTag }),
+  ).toBeVisible();
 
   // Rename the tag
   await page.getByRole('button', { name: new RegExp(`rename tag ${originalTag}`, 'i') }).click();
@@ -49,9 +52,12 @@ test('tag management panel: rename a tag, verify notes updated, then delete it',
   await page.getByRole('button', { name: /^save$/i }).click();
 
   // The renamed tag should appear; original tag should be gone from the list
-  await expect(page.getByRole('listitem').filter({ hasText: renamedTag })).toBeVisible();
+  await expect(tagManagerPanel.getByRole('listitem').filter({ hasText: renamedTag })).toBeVisible();
   await expect(
-    page.getByRole('listitem').filter({ hasText: originalTag }).filter({ hasText: 'notes' }),
+    tagManagerPanel
+      .getByRole('listitem')
+      .filter({ hasText: originalTag })
+      .filter({ hasText: 'notes' }),
   ).not.toBeVisible();
 
   // Close the tag manager panel and verify notes were updated
