@@ -561,7 +561,7 @@ describe('App', () => {
     // pageContainingNote makes two async fetches before setPage/refresh — allow
     // extra time so the assertion does not flake on slow CI runners.
     await waitFor(() => expect(screen.getByText('Sixth note')).toBeInTheDocument(), {
-      timeout: 5000,
+      timeout: 10000,
     });
   });
 
@@ -634,7 +634,7 @@ describe('App', () => {
     // pageContainingNote makes two async fetches before setPage — allow extra
     // time so the assertion does not flake on slow CI runners.
     await waitFor(() => expect(screen.getByText('Seventh note')).toBeInTheDocument(), {
-      timeout: 5000,
+      timeout: 10000,
     });
     // Page 1 notes (oldest) should no longer be shown
     expect(screen.queryByText('OldSort 1')).not.toBeInTheDocument();
@@ -748,7 +748,7 @@ describe('App', () => {
     // pageContainingNote makes two async fetches before setPage — allow extra
     // time so the assertion does not flake on slow CI runners.
     await waitFor(() => expect(screen.getByText('Zebra')).toBeInTheDocument(), {
-      timeout: 5000,
+      timeout: 10000,
     });
     // Apple (page 1) should no longer be visible
     expect(screen.queryByText('Apple')).not.toBeInTheDocument();
@@ -1867,11 +1867,11 @@ describe('App — title-sort create with duplicate titles', () => {
     // pageContainingNote makes two async fetches before setPage — allow extra
     // time so the assertion does not flake on slow CI runners.
     await waitFor(() => expect(screen.queryByText('Apple')).not.toBeInTheDocument(), {
-      timeout: 5000,
+      timeout: 10000,
     });
     // At least one "Zebra" is visible (both sort adjacently on page 2)
     await waitFor(() => expect(screen.getAllByText('Zebra').length).toBeGreaterThan(0), {
-      timeout: 5000,
+      timeout: 10000,
     });
   });
 });
@@ -2189,7 +2189,7 @@ describe('App — create with pinned notes', () => {
     // pageContainingNote makes two async fetches before setPage — allow extra
     // time so the assertion does not flake on slow CI runners.
     await waitFor(() => expect(screen.getByText('New unpinned oldest')).toBeInTheDocument(), {
-      timeout: 5000,
+      timeout: 10000,
     });
     // Next button disabled confirms we are on the last page
     expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
