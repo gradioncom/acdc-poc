@@ -7,11 +7,21 @@
 > bounded parallelism + a conflict-recovery loop.
 
 ## Decisions (locked 2026-06-11)
-- **Parallelism: 3–4 implementers per batch.** The orchestrator picks tickets that touch
-  **different files** for a batch where possible, to minimize merge conflicts.
-- **Conflict handling: MERGE `main` into the branch** (NOT rebase). One resolve pass,
-  re-green, re-review, merge. No force-push.
+- **v3 — CONTINUOUS worker-pool (supersedes v2 batching):** keep **≤5 agents running at
+  once**. NO batch barrier — the moment a PR is green-and-gated, **merge it immediately**,
+  free the slot, and start the next Todo ticket. Each ticket runs its own async chain
+  (implement → review → resolve → gate → merge → refill). "≤5 agents" = ≤5 concurrent
+  subagents (implementer/resolver/sync); since each in-flight ticket has ≤1 active subagent
+  at a time, cap ≈ ≤5 in-flight tickets. Background `gh` polls don't count toward the 5.
+- When picking the next ticket, prefer one touching **different files** from in-flight PRs
+  to reduce conflicts.
+- **Conflict handling: MERGE `main` into the branch** (NOT rebase). After ANY merge,
+  in-flight PRs that go behind/conflicting get a sync subagent (`git merge origin/main` →
+  resolve → re-green) before they can be gated/merged. One resolve pass, no force-push.
 - App stays small-but-not-minimal; in-memory store (no DB).
+- **Re-derive live state from GitHub** each decision point (`gh pr list`,
+  `gh pr view N --json mergeable,mergeStateStatus,statusCheckRollup`) rather than trusting
+  in-memory state — robust across a long run.
 
 ## The loop
 1. **Select a batch** of up to 4 `agent-ready` issues, preferring non-overlapping file
