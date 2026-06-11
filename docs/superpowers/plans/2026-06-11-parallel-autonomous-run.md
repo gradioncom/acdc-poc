@@ -16,7 +16,17 @@
 ## The loop
 1. **Select a batch** of up to 4 `agent-ready` issues, preferring non-overlapping file
    areas (e.g. one web-UI, one server, one tags, one infra) to reduce conflicts.
-2. **Fan out implementers** (parallel, `run_in_background`): each in its own worktree
+2. **Move each ticket to "In Progress" at dispatch time** (NOT at PR creation). For each
+   issue N, before/as you launch its implementer, set its board status:
+   ```bash
+   PROJECT=PVT_kwDOAhSpyc4BaJcp                  # acdc-poc Delivery (#7)
+   STATUS_FIELD=PVTSSF_lADOAhSpyc4BaJcpzhVDFJw    # "Status"
+   IN_PROGRESS=47fc9ee4                            # Todo=f75ad846 · In review=df73e18b · Done=98236657
+   ITEM=$(gh project item-list 7 --owner gradionai --format json --jq ".items[]|select(.content.number==N)|.id")
+   gh project item-edit --id "$ITEM" --project-id "$PROJECT" --field-id "$STATUS_FIELD" --single-select-option-id "$IN_PROGRESS"
+   ```
+   (The board's built-in PR-linked transitions still handle In review / Done later.)
+2b. **Fan out implementers** (parallel, `run_in_background`): each in its own worktree
    `acdc-poc-wt/issue-N` off the CURRENT `main`, on `run/issue-N`. Each: reads issue +
    `CLAUDE.md`, implements, adds a Playwright e2e, runs the green bar
    (`lint && build && test:cov server && test:cov web && test:e2e`), commits
