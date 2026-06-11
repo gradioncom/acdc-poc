@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type FormEvent,
+} from 'react';
 import {
   attachmentDownloadUrl,
   createNote,
@@ -7,15 +15,18 @@ import {
   duplicateNote,
   listAttachments,
   listNotes,
+  NOTE_COLORS,
   togglePin,
   updateNote,
-  uploadAttachment,
+  uploadAttachments,
   type AttachmentMeta,
   type Note,
+  type NoteColor,
   type SortOrder,
 } from './api';
 import { Button } from './components/Button';
 import { NoteBody } from './NoteBody';
+import { TagManager } from './TagManager';
 import { ToastContainer } from './ToastContainer';
 import { useTheme } from './useTheme';
 import { countWords, countChars } from './wordCount';
@@ -41,10 +52,12 @@ function parseTags(raw: string): string[] {
 export function App() {
   const { theme, toggleTheme } = useTheme();
   const { toasts, addToast, dismissToast } = useToast();
+  const [showTagManager, setShowTagManager] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [tagsInput, setTagsInput] = useState('');
+  const [color, setColor] = useState<NoteColor>('none');
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -52,6 +65,7 @@ export function App() {
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
   const [editTagsInput, setEditTagsInput] = useState('');
+  const [editColor, setEditColor] = useState<NoteColor>('none');
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
@@ -73,6 +87,8 @@ export function App() {
   const helpToggleRef = useRef<HTMLButtonElement>(null);
   /** Ref to the help panel's close button — focused when the panel opens. */
   const helpCloseBtnRef = useRef<HTMLButtonElement>(null);
+  /** noteId → true while a drag is active over that note's dropzone. */
+  const [dragOver, setDragOver] = useState<Record<string, boolean>>({});
 
   // True only on the very first load — gates the skeleton so background
   // refreshes after mutations do not flash the whole list.
@@ -146,10 +162,11 @@ export function App() {
     e.preventDefault();
     if (!title.trim() || !body.trim()) return;
     try {
-      const created = await createNote({ title, body, tags: parseTags(tagsInput) });
+      const created = await createNote({ title, body, tags: parseTags(tagsInput), color });
       setTitle('');
       setBody('');
       setTagsInput('');
+      setColor('none');
       setError(null);
       addToast('Note created', 'success');
       // Clear both active filters before navigating so the new note is always
@@ -186,6 +203,7 @@ export function App() {
     setEditTitle(note.title);
     setEditBody(note.body);
     setEditTagsInput(note.tags.join(', '));
+    setEditColor(note.color);
   }
 
   function onEditCancel() {
@@ -193,16 +211,23 @@ export function App() {
     setEditTitle('');
     setEditBody('');
     setEditTagsInput('');
+    setEditColor('none');
   }
 
   async function onEditSave(id: string) {
     if (!editTitle.trim() || !editBody.trim()) return;
     try {
-      await updateNote(id, { title: editTitle, body: editBody, tags: parseTags(editTagsInput) });
+      await updateNote(id, {
+        title: editTitle,
+        body: editBody,
+        tags: parseTags(editTagsInput),
+        color: editColor,
+      });
       setEditingId(null);
       setEditTitle('');
       setEditBody('');
       setEditTagsInput('');
+      setEditColor('none');
       setError(null);
       addToast('Note updated', 'success');
       await refresh(page);
@@ -227,14 +252,11 @@ export function App() {
     }
   }
 
-  async function onUploadFile(id: string, e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // Reset the input so the same file can be re-uploaded after correction
-    e.target.value = '';
+  async function uploadFiles(id: string, files: File[]) {
+    if (files.length === 0) return;
     setUploadError((prev) => ({ ...prev, [id]: null }));
     try {
-      await uploadAttachment(id, file);
+      await uploadAttachments(id, files);
       const metas = await listAttachments(id);
       setAttachments((prev) => ({ ...prev, [id]: metas }));
     } catch (err: unknown) {
@@ -243,6 +265,33 @@ export function App() {
         [id]: err instanceof Error ? err.message : 'An unexpected error occurred',
       }));
     }
+  }
+
+  async function onUploadFile(id: string, e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    // Reset the input so the same file(s) can be re-uploaded after correction
+    e.target.value = '';
+    await uploadFiles(id, files);
+  }
+
+  function onDragOver(id: string, e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver((prev) => ({ ...prev, [id]: true }));
+  }
+
+  function onDragLeave(id: string, e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver((prev) => ({ ...prev, [id]: false }));
+  }
+
+  async function onDrop(id: string, e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver((prev) => ({ ...prev, [id]: false }));
+    const files = Array.from(e.dataTransfer.files);
+    await uploadFiles(id, files);
   }
 
   async function onTogglePin(id: string, currentlyPinned: boolean) {
@@ -395,6 +444,14 @@ export function App() {
           >
             ?
           </button>
+          <Button
+            variant="secondary"
+            onClick={() => setShowTagManager((v) => !v)}
+            aria-expanded={showTagManager}
+            aria-controls="tag-manager-panel"
+          >
+            {showTagManager ? 'Hide tag manager' : 'Manage tags'}
+          </Button>
           <button
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             className="theme-toggle"
@@ -439,6 +496,13 @@ export function App() {
           <Button variant="danger" onClick={() => void refresh()} aria-label="Retry">
             Retry
           </Button>
+        </div>
+      )}
+
+      {/* Tag manager panel */}
+      {showTagManager && (
+        <div id="tag-manager-panel">
+          <TagManager onChanged={() => void refresh(page, query, tagFilter)} />
         </div>
       )}
 
@@ -521,6 +585,21 @@ export function App() {
               onChange={(e) => setTagsInput(e.target.value)}
             />
           </label>
+          <div className={styles.fieldLabel} role="group" aria-label="Color">
+            Color
+            <div className={styles.colorPicker}>
+              {NOTE_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Color ${c}`}
+                  aria-pressed={color === c}
+                  className={`${styles.colorSwatch} ${styles[`swatch-${c}`]} ${color === c ? styles.colorSwatchSelected : ''}`}
+                  onClick={() => setColor(c)}
+                />
+              ))}
+            </div>
+          </div>
           <div className={styles.formActions}>
             <Button type="submit" variant="primary">
               Add note
@@ -596,6 +675,21 @@ export function App() {
                       onChange={(e) => setEditTagsInput(e.target.value)}
                     />
                   </label>
+                  <div className={styles.fieldLabel} role="group" aria-label="Edit color">
+                    Color
+                    <div className={styles.colorPicker}>
+                      {NOTE_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          aria-label={`Color ${c}`}
+                          aria-pressed={editColor === c}
+                          className={`${styles.colorSwatch} ${styles[`swatch-${c}`]} ${editColor === c ? styles.colorSwatchSelected : ''}`}
+                          onClick={() => setEditColor(c)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                   <div className={styles.noteActions}>
                     <Button variant="primary" onClick={() => void onEditSave(n.id)}>
                       Save
@@ -607,7 +701,11 @@ export function App() {
                 </div>
               </li>
             ) : (
-              <li key={n.id} className={styles.noteCard}>
+              <li
+                key={n.id}
+                className={`${styles.noteCard} ${n.color !== 'none' ? styles[`card-${n.color}`] : ''}`}
+                data-color={n.color}
+              >
                 <div className={styles.noteHeader}>
                   <span className={styles.noteTitle}>{n.title}</span>
                   {n.pinned && (
@@ -673,10 +771,24 @@ export function App() {
                         {uploadError[n.id]}
                       </p>
                     )}
+                    {/* Drag-and-drop dropzone */}
+                    <div
+                      role="region"
+                      aria-label={`Drop files here to attach to ${n.title}`}
+                      className={`${styles.dropzone} ${dragOver[n.id] ? styles.dropzoneActive : ''}`}
+                      onDragOver={(e) => onDragOver(n.id, e)}
+                      onDragLeave={(e) => onDragLeave(n.id, e)}
+                      onDrop={(e) => void onDrop(n.id, e)}
+                    >
+                      <span className={styles.dropzoneHint}>
+                        Drag &amp; drop files here, or use the button below
+                      </span>
+                    </div>
                     <label className={styles.attachmentUpload}>
-                      Attach file
+                      Attach files
                       <input
                         type="file"
+                        multiple
                         aria-label={`Upload attachment for ${n.title}`}
                         onChange={(e) => void onUploadFile(n.id, e)}
                       />
