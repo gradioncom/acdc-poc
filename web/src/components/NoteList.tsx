@@ -1,46 +1,18 @@
-import type { ChangeEvent, DragEvent, RefObject } from 'react';
+import type { RefObject } from 'react';
 import { Button } from './Button';
-import { NoteCard } from './NoteCard';
-import type { AttachmentMeta, Note, NoteColor } from '../api';
+import { NoteCard, type NoteCardProps } from './NoteCard';
+import type { Note } from '../api';
 import styles from '../App.module.css';
 
-export interface NoteListProps {
+/** All props that NoteList passes through to each NoteCard, plus NoteList-specific props. */
+export type NoteListProps = Omit<NoteCardProps, 'note'> & {
   notes: Note[];
   initialLoading: boolean;
   isFilterActive: boolean;
   showEmptyState: boolean;
-  // Edit state (passed through to NoteCard)
-  editingId: string | null;
-  editTitle: string;
-  editBody: string;
-  editTagsInput: string;
-  editColor: NoteColor;
-  onEditTitleChange: (value: string) => void;
-  onEditBodyChange: (value: string) => void;
-  onEditTagsInputChange: (value: string) => void;
-  onEditColorChange: (color: NoteColor) => void;
-  onEditSave: (id: string) => void;
-  onEditCancel: () => void;
-  onEditStart: (note: Note) => void;
-  // Actions (passed through to NoteCard)
-  onTogglePin: (id: string, pinned: boolean) => void;
-  onToggleArchive: (id: string, archived: boolean) => void;
-  onDeleteRequest: (id: string, trigger: HTMLButtonElement) => void;
-  onDuplicate: (id: string) => void;
-  // Attachments (passed through to NoteCard)
-  attachments: Record<string, AttachmentMeta[]>;
-  attachmentsOpen: Record<string, boolean>;
-  uploadError: Record<string, string | null>;
-  dragOver: Record<string, boolean>;
-  onToggleAttachments: (id: string) => void;
-  onUploadFile: (id: string, e: ChangeEvent<HTMLInputElement>) => void;
-  onDragOver: (id: string, e: DragEvent<HTMLElement>) => void;
-  onDragLeave: (id: string, e: DragEvent<HTMLElement>) => void;
-  onDrop: (id: string, e: DragEvent<HTMLElement>) => void;
-  onDeleteAttachment: (noteId: string, filename: string) => void;
   // Empty state CTA
   newNoteTitleRef: RefObject<HTMLInputElement>;
-}
+};
 
 export function NoteList({
   notes,
