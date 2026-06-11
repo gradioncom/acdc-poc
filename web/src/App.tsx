@@ -3,6 +3,7 @@ import {
   attachmentDownloadUrl,
   createNote,
   deleteNote,
+  duplicateNote,
   listAttachments,
   listNotes,
   togglePin,
@@ -13,7 +14,9 @@ import {
   type SortOrder,
 } from './api';
 import { Button } from './components/Button';
+import { ToastContainer } from './ToastContainer';
 import { useTheme } from './useTheme';
+import { useToast } from './useToast';
 import styles from './App.module.css';
 
 const PAGE_SIZE = 5;
@@ -33,6 +36,7 @@ function parseTags(raw: string): string[] {
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
+  const { toasts, addToast, dismissToast } = useToast();
   const [notes, setNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -106,6 +110,7 @@ export function App() {
       setBody('');
       setTagsInput('');
       setError(null);
+      addToast('Note created', 'success');
       // If a search filter is active, clear it before navigating so the new
       // note is always visible. With a filter active, `total` reflects only
       // the filtered count; the new note may not match the query, so
@@ -149,6 +154,7 @@ export function App() {
         }
       }
     } catch (e) {
+      addToast('Failed to create note', 'error');
       setError(String(e));
     }
   }
@@ -176,8 +182,10 @@ export function App() {
       setEditBody('');
       setEditTagsInput('');
       setError(null);
+      addToast('Note updated', 'success');
       await refresh(page);
     } catch (e) {
+      addToast('Failed to update note', 'error');
       setError(String(e));
     }
   }
@@ -216,6 +224,7 @@ export function App() {
     try {
       await togglePin(id);
       setError(null);
+      addToast(currentlyPinned ? 'Note unpinned' : 'Note pinned', 'success');
       if (currentlyPinned) {
         // Unpin: note stays on (or near) the current page — just refresh it.
         await refresh(page);
@@ -230,6 +239,7 @@ export function App() {
         }
       }
     } catch (e) {
+      addToast('Failed to toggle pin', 'error');
       setError(String(e));
     }
   }
@@ -238,6 +248,7 @@ export function App() {
     try {
       await deleteNote(id);
       setError(null);
+      addToast('Note deleted', 'success');
       // After deletion the current page may become empty; go back one if needed
       const newTotal = total - 1;
       const newTotalPages = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
@@ -246,6 +257,25 @@ export function App() {
         await refresh(page);
       } else {
         setPage(newPage);
+      }
+    } catch (e) {
+      addToast('Failed to delete note', 'error');
+      setError(String(e));
+    }
+  }
+
+  async function onDuplicate(id: string) {
+    try {
+      await duplicateNote(id);
+      setError(null);
+      // The duplicate is appended at the end (newest createdAt); navigate to the
+      // last page so it is immediately visible.
+      const newTotal = total + 1;
+      const lastPage = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
+      if (page === lastPage) {
+        await refresh(lastPage);
+      } else {
+        setPage(lastPage);
       }
     } catch (e) {
       setError(String(e));
@@ -439,6 +469,13 @@ export function App() {
                 </Button>
                 <Button
                   variant="secondary"
+                  aria-label={`Duplicate ${n.title}`}
+                  onClick={() => void onDuplicate(n.id)}
+                >
+                  Duplicate
+                </Button>
+                <Button
+                  variant="secondary"
                   aria-label={`Attachments for ${n.title}`}
                   onClick={() => void onToggleAttachments(n.id)}
                 >
@@ -513,6 +550,7 @@ export function App() {
           Next
         </Button>
       </nav>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </main>
   );
 }
