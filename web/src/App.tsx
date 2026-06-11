@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import {
   attachmentDownloadUrl,
   createNote,
+  deleteAttachment,
   deleteNote,
+  duplicateNote,
   listAttachments,
   listNotes,
   NOTE_COLORS,
@@ -14,8 +16,10 @@ import {
   type NoteColor,
 } from './api';
 import { Button } from './components/Button';
+import { NoteBody } from './NoteBody';
 import { ToastContainer } from './ToastContainer';
 import { useTheme } from './useTheme';
+import { countWords, countChars } from './wordCount';
 import { useToast } from './useToast';
 import styles from './App.module.css';
 
@@ -234,6 +238,17 @@ export function App() {
     }
   }
 
+  async function onDeleteAttachment(noteId: string, filename: string) {
+    if (!window.confirm(`Delete attachment "${filename}"?`)) return;
+    try {
+      await deleteAttachment(noteId, filename);
+      const metas = await listAttachments(noteId);
+      setAttachments((prev) => ({ ...prev, [noteId]: metas }));
+    } catch (e) {
+      setUploadError((prev) => ({ ...prev, [noteId]: String(e) }));
+    }
+  }
+
   async function onDelete(id: string) {
     try {
       await deleteNote(id);
@@ -250,6 +265,24 @@ export function App() {
       }
     } catch (e) {
       addToast('Failed to delete note', 'error');
+      setError(String(e));
+    }
+  }
+
+  async function onDuplicate(id: string) {
+    try {
+      await duplicateNote(id);
+      setError(null);
+      // The duplicate is appended at the end (newest createdAt); navigate to the
+      // last page so it is immediately visible.
+      const newTotal = total + 1;
+      const lastPage = Math.max(1, Math.ceil(newTotal / PAGE_SIZE));
+      if (page === lastPage) {
+        await refresh(lastPage);
+      } else {
+        setPage(lastPage);
+      }
+    } catch (e) {
       setError(String(e));
     }
   }
@@ -319,6 +352,10 @@ export function App() {
               onChange={(e) => setBody(e.target.value)}
             />
           </label>
+          <p aria-live="polite" className={styles.wordCount}>
+            {countWords(body)} {countWords(body) === 1 ? 'word' : 'words'}, {countChars(body)}{' '}
+            {countChars(body) === 1 ? 'character' : 'characters'}
+          </p>
           <label className={styles.fieldLabel}>
             Tags
             <input
@@ -425,7 +462,7 @@ export function App() {
                   </span>
                 )}
               </div>
-              <p className={styles.noteBody}>{n.body}</p>
+              <NoteBody body={n.body} className={styles.noteBody} />
               {n.tags.length > 0 && (
                 <div className={styles.tagList} aria-label="Tags">
                   {n.tags.map((tag) => (
@@ -456,6 +493,13 @@ export function App() {
                   onClick={() => void onDelete(n.id)}
                 >
                   Delete
+                </Button>
+                <Button
+                  variant="secondary"
+                  aria-label={`Duplicate ${n.title}`}
+                  onClick={() => void onDuplicate(n.id)}
+                >
+                  Duplicate
                 </Button>
                 <Button
                   variant="secondary"
@@ -500,6 +544,13 @@ export function App() {
                             {att.filename}
                           </a>{' '}
                           ({att.size} bytes)
+                          <Button
+                            variant="danger"
+                            aria-label={`Delete attachment ${att.filename}`}
+                            onClick={() => void onDeleteAttachment(n.id, att.filename)}
+                          >
+                            Delete
+                          </Button>
                         </li>
                       ))}
                     </ul>
