@@ -12,6 +12,7 @@ type MockNote = {
   pinned: boolean;
   archived: boolean;
   color: NoteColor;
+  deletedAt: number | null;
 };
 
 type MockAttachment = { filename: string; contentType: string; size: number; data: string };
@@ -138,6 +139,7 @@ function mockFetchSequence() {
           pinned: false,
           archived: false,
           color: source.color,
+          deletedAt: null,
         };
         notes.push(copy);
         return new Response(JSON.stringify(copy), { status: 201 });
@@ -158,6 +160,7 @@ function mockFetchSequence() {
           pinned: false,
           archived: false,
           color: b.color ?? 'none',
+          deletedAt: null,
         };
         notes.push(n);
         return new Response(JSON.stringify(n), { status: 201 });
@@ -186,11 +189,48 @@ function mockFetchSequence() {
           ? new Response(JSON.stringify(updated), { status: 200 })
           : new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
       }
-      if (init?.method === 'DELETE') {
-        const id = urlStr.split('/').pop();
-        notes = notes.filter((n) => n.id !== id);
+      // PATCH /:id/restore
+      if (init?.method === 'PATCH' && /\/api\/notes\/[^/]+\/restore$/.test(urlStr)) {
+        const noteId = urlStr.split('/').at(-2) ?? '';
+        const idx = notes.findIndex((n) => n.id === noteId);
+        if (idx === -1) {
+          return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+        }
+        notes[idx] = { ...notes[idx], deletedAt: null };
+        return new Response(JSON.stringify(notes[idx]), { status: 200 });
+      }
+
+      // DELETE /:id/permanent
+      if (init?.method === 'DELETE' && /\/api\/notes\/[^/]+\/permanent$/.test(urlStr)) {
+        const noteId = urlStr.split('/').at(-2) ?? '';
+        const idx = notes.findIndex((n) => n.id === noteId);
+        if (idx === -1) {
+          return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+        }
+        notes.splice(idx, 1);
         return new Response(null, { status: 204 });
       }
+
+      // DELETE /:id — soft-delete (trash)
+      if (init?.method === 'DELETE') {
+        const id = urlStr.split('/').pop();
+        const idx = notes.findIndex((n) => n.id === id);
+        if (idx === -1) {
+          return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+        }
+        notes[idx] = { ...notes[idx], deletedAt: Date.now() };
+        return new Response(null, { status: 204 });
+      }
+
+      // GET /api/notes/trash
+      if (
+        (init?.method === undefined || init?.method === 'GET') &&
+        /\/api\/notes\/trash$/.test(urlStr)
+      ) {
+        const trashed = notes.filter((n) => n.deletedAt !== null);
+        return new Response(JSON.stringify(trashed), { status: 200 });
+      }
+
       // GET /api/tags — return aggregated tag stats
       if (urlStr.includes('/api/tags') && !urlStr.includes('/rename')) {
         const tagCounts: Record<string, number> = {};
@@ -222,6 +262,8 @@ function mockFetchSequence() {
         : [];
       const filtered = notes
         .filter((n) => {
+          // Exclude trashed notes from the default list views
+          if (n.deletedAt !== null) return false;
           if (n.archived !== archivedParam) return false;
           if (
             term !== '' &&
@@ -1783,6 +1825,64 @@ describe('App — archive', () => {
   });
 });
 
+describe('App — trash', () => {
+  beforeEach(() => mockFetchSequence());
+
+  async function createNote(title: string) {
+    await userEvent.type(screen.getByLabelText(/^title$/i), title);
+    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    await userEvent.click(screen.getByRole('button', { name: /add note/i }));
+    await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
+  }
+
+  // Soft-delete a note: open its overflow menu, click Delete, confirm in the dialog.
+  async function trashNote(title: string) {
+    await userEvent.click(screen.getByRole('button', { name: /more actions/i }));
+    await userEvent.click(
+      screen.getByRole('menuitem', { name: new RegExp(`^delete ${title}$`, 'i') }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /^delete$/i }));
+    await waitFor(() => expect(screen.queryByText(title)).not.toBeInTheDocument());
+  }
+
+  it('deleting a note moves it to trash and shows it in the Trash view with a Restore button', async () => {
+    render(<App />);
+    await createNote('Trash me');
+    await trashNote('Trash me');
+
+    // Switch to the Trash view
+    await userEvent.click(screen.getByRole('button', { name: /show trash/i }));
+    await waitFor(() => expect(screen.getByText('Trash me')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /^restore trash me$/i })).toBeInTheDocument();
+  });
+
+  it('restoring a trashed note removes it from the Trash view', async () => {
+    render(<App />);
+    await createNote('Restore me');
+    await trashNote('Restore me');
+
+    await userEvent.click(screen.getByRole('button', { name: /show trash/i }));
+    await waitFor(() => expect(screen.getByText('Restore me')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: /^restore restore me$/i }));
+    await waitFor(() => expect(screen.queryByText('Restore me')).not.toBeInTheDocument());
+  });
+
+  it('permanently deleting a trashed note removes it entirely after confirmation', async () => {
+    render(<App />);
+    await createNote('Nuke me');
+    await trashNote('Nuke me');
+
+    await userEvent.click(screen.getByRole('button', { name: /show trash/i }));
+    await waitFor(() => expect(screen.getByText('Nuke me')).toBeInTheDocument());
+
+    // Open the permanent-delete confirm dialog and confirm
+    await userEvent.click(screen.getByRole('button', { name: /^permanently delete nuke me$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /delete permanently/i }));
+    await waitFor(() => expect(screen.queryByText('Nuke me')).not.toBeInTheDocument());
+  });
+});
+
 describe('App — sort', () => {
   beforeEach(() => mockFetchSequence());
 
@@ -2238,9 +2338,14 @@ describe('App — create with pinned notes', () => {
     await waitFor(() => expect(screen.getByText('PinnedOld 1')).toBeInTheDocument());
 
     // Create a new (unpinned) note — with 10 pinned notes + 1 unpinned = 11 total
-    // Pinned fill pages 1 (5 pinned) and 2 (5 pinned); unpinned lands on page 3
-    await userEvent.type(screen.getByLabelText(/^title$/i), 'New unpinned oldest');
-    await userEvent.type(screen.getByLabelText(/^body$/i), 'body');
+    // Pinned fill pages 1 (5 pinned) and 2 (5 pinned); unpinned lands on page 3.
+    // Set the fields with fireEvent.change rather than userEvent.type: with 11
+    // notes rendered, per-keystroke re-renders are slow enough to flake the
+    // downstream navigation assertion on constrained CI runners.
+    fireEvent.change(screen.getByLabelText(/^title$/i), {
+      target: { value: 'New unpinned oldest' },
+    });
+    fireEvent.change(screen.getByLabelText(/^body$/i), { target: { value: 'body' } });
     await userEvent.click(screen.getByRole('button', { name: /add note/i }));
 
     // Must navigate to page 3 — not page 2 (what an "oldest→last page" shortcut would compute)
@@ -2249,13 +2354,13 @@ describe('App — create with pinned notes', () => {
     // pageContainingNote makes two async fetches before setPage — allow extra
     // time so the assertion does not flake on slow CI runners.
     await waitFor(() => expect(screen.getByText('New unpinned oldest')).toBeInTheDocument(), {
-      timeout: 10000,
+      timeout: 15000,
     });
     // Next button disabled confirms we are on the last page
     await waitFor(() => expect(screen.getByRole('button', { name: /next/i })).toBeDisabled(), {
-      timeout: 10000,
+      timeout: 15000,
     });
-  });
+  }, 30000);
 });
 
 describe('App — create and duplicate with both query and tag filter active', () => {

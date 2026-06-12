@@ -19,6 +19,7 @@ function note(id: string, title: string, pinned = false): Note {
     pinned,
     archived: false,
     color: 'none' as NoteColor,
+    deletedAt: null,
   };
 }
 

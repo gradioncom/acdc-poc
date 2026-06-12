@@ -18,6 +18,7 @@ export interface Note {
   pinned: boolean;
   archived: boolean;
   color: NoteColor;
+  deletedAt: number | null;
 }
 
 export interface Attachment {
@@ -76,6 +77,7 @@ export class NoteStore {
       pinned: false,
       archived: false,
       color: input.color ?? 'none',
+      deletedAt: null,
     };
     this.notes.set(note.id, note);
     return note;
@@ -135,7 +137,35 @@ export class NoteStore {
     return updated;
   }
 
-  delete(id: string): boolean {
+  /**
+   * Soft-delete: move a note to trash by setting `deletedAt` to the current
+   * wall-clock timestamp.  Returns the updated note, or undefined if missing.
+   */
+  trash(id: string): Note | undefined {
+    const existing = this.notes.get(id);
+    if (!existing) return undefined;
+    const updated: Note = { ...existing, deletedAt: Date.now() };
+    this.notes.set(id, updated);
+    return updated;
+  }
+
+  /**
+   * Restore a trashed note back to the active list by clearing `deletedAt`.
+   * Returns the updated note, or undefined if the note does not exist.
+   */
+  restore(id: string): Note | undefined {
+    const existing = this.notes.get(id);
+    if (!existing) return undefined;
+    const updated: Note = { ...existing, deletedAt: null };
+    this.notes.set(id, updated);
+    return updated;
+  }
+
+  /**
+   * Permanently delete a note and all its attachments from the store.
+   * Returns true on success, false if the note was not found.
+   */
+  permanentDelete(id: string): boolean {
     if (!this.notes.delete(id)) return false;
     // Remove all attachments belonging to this note
     for (const key of this.attachments.keys()) {
@@ -144,6 +174,15 @@ export class NoteStore {
       }
     }
     return true;
+  }
+
+  /**
+   * @deprecated Use `permanentDelete` for hard removal. Kept for internal use
+   * (e.g. by tag management) where notes are not user-visible and soft-delete
+   * semantics don't apply.
+   */
+  delete(id: string): boolean {
+    return this.permanentDelete(id);
   }
 
   /** Maximum number of attachments allowed per note. */
@@ -243,12 +282,13 @@ export class NoteStore {
 
   /**
    * Return every unique tag currently in use, paired with how many notes carry
-   * it and its assigned color (or null when none has been set).
-   * Results are sorted alphabetically by tag name.
+   * it and its assigned color (or null when none has been set). Trashed notes
+   * are excluded. Results are sorted alphabetically by tag name.
    */
   listTags(): Array<{ tag: string; count: number; color: TagColor | null }> {
     const counts = new Map<string, number>();
     for (const note of this.notes.values()) {
+      if (note.deletedAt !== null) continue; // exclude trashed notes
       for (const tag of note.tags) {
         counts.set(tag, (counts.get(tag) ?? 0) + 1);
       }
@@ -346,6 +386,8 @@ export class NoteStore {
         return b.createdAt - a.createdAt;
       })
       .filter((n) => {
+        // Trashed notes never appear in the standard list views
+        if (n.deletedAt !== null) return false;
         if (n.archived !== archived) return false;
         if (
           term !== '' &&
@@ -368,5 +410,15 @@ export class NoteStore {
       });
     const start = (page - 1) * pageSize;
     return { items: all.slice(start, start + pageSize), total: all.length };
+  }
+
+  /**
+   * Return all trashed notes (those with a non-null `deletedAt`), sorted by
+   * most-recently trashed first.
+   */
+  listTrashed(): Note[] {
+    return [...this.notes.values()]
+      .filter((n) => n.deletedAt !== null)
+      .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
   }
 }
