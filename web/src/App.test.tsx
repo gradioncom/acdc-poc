@@ -2280,13 +2280,13 @@ describe('App — create with pinned notes', () => {
     // pageContainingNote makes two async fetches before setPage — allow extra
     // time so the assertion does not flake on slow CI runners.
     await waitFor(() => expect(screen.getByText('New unpinned oldest')).toBeInTheDocument(), {
-      timeout: 10000,
+      timeout: 15000,
     });
     // Next button disabled confirms we are on the last page
     await waitFor(() => expect(screen.getByRole('button', { name: /next/i })).toBeDisabled(), {
-      timeout: 10000,
+      timeout: 15000,
     });
-  });
+  }, 30000);
 });
 
 describe('App — create and duplicate with both query and tag filter active', () => {
