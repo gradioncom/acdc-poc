@@ -104,6 +104,8 @@ export function App() {
   const [showTrash, setShowTrash] = useState(false);
   const [trashedNotes, setTrashedNotes] = useState<Note[]>([]);
   const [sort, setSort] = useState<SortOrder>('newest');
+  /** Flat list of existing tag names for the autocomplete suggestion list. */
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   /** noteId → list of attachment metadata (loaded lazily on expand). */
   const [attachments, setAttachments] = useState<Record<string, AttachmentMeta[]>>({});
   /** noteId → true while attachments panel is open. */
@@ -233,6 +235,21 @@ export function App() {
     tags.map(({ tag, color }) => [tag, color]),
   );
 
+  /** Refresh the flat tag list used for autocomplete suggestions. */
+  async function refreshTagSuggestions() {
+    try {
+      const stats = await listTags();
+      setTagSuggestions(stats.map((s) => s.tag));
+    } catch {
+      // Non-fatal: suggestions simply won't update.
+    }
+  }
+
+  // Load tag suggestions on mount.
+  useEffect(() => {
+    void refreshTagSuggestions();
+  }, []);
+
   // Debounce search input: update `query` after SEARCH_DEBOUNCE_MS of inactivity.
   // Reset to page 1 whenever the query changes so results are always from the start.
   // Skip the page reset when onSubmit has already positioned the page itself.
@@ -281,6 +298,7 @@ export function App() {
       setError(null);
       addToast('Note created', 'success');
       void refreshTags();
+      void refreshTagSuggestions();
       // Clear both active filters before navigating so the new note is always
       // visible (it may not match the active query or tag filter).
       // pageContainingNote fetches the fully unfiltered list, so clearing both
@@ -650,6 +668,7 @@ export function App() {
         onTagsChanged={() => {
           void refresh(page, query, tagFilter);
           void refreshTags();
+          void refreshTagSuggestions();
         }}
         helpToggleRef={helpToggleRef}
         helpCloseBtnRef={helpCloseBtnRef}
@@ -705,6 +724,7 @@ export function App() {
         onBodyChange={setBody}
         tagsInput={tagsInput}
         onTagsInputChange={setTagsInput}
+        tagSuggestions={tagSuggestions}
         color={color}
         onColorChange={setColor}
         onSubmit={onSubmit}
