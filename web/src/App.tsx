@@ -22,6 +22,7 @@ import {
   type Note,
   type NoteColor,
   type SortOrder,
+  type TagMode,
 } from './api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ToastContainer } from './ToastContainer';
@@ -71,6 +72,7 @@ export function App() {
   const [searchInput, setSearchInput] = useState('');
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
+  const [tagMode, setTagMode] = useState<TagMode>('or');
   const [showArchived, setShowArchived] = useState(false);
   const [sort, setSort] = useState<SortOrder>('newest');
   /** noteId → list of attachment metadata (loaded lazily on expand). */
@@ -114,10 +116,30 @@ export function App() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  async function refresh(p = page, q = query, tf = tagFilter, s = sort, archived = showArchived) {
+  /** Parse a comma-separated tag filter string into a trimmed, non-empty, deduplicated tag list. */
+  function parseTagFilter(raw: string): string[] {
+    return [
+      ...new Set(
+        raw
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t) => t !== ''),
+      ),
+    ];
+  }
+
+  async function refresh(
+    p = page,
+    q = query,
+    tf = tagFilter,
+    s = sort,
+    archived = showArchived,
+    tm = tagMode,
+  ) {
     const seq = ++reqSeqRef.current;
     try {
-      const result = await listNotes(p, PAGE_SIZE, q, tf, s, archived);
+      const tags = parseTagFilter(tf);
+      const result = await listNotes(p, PAGE_SIZE, q, undefined, s, archived, tags, tm);
       if (seq !== reqSeqRef.current) return; // stale — a newer request is in flight
       setNotes(result.notes);
       setTotal(result.total);
@@ -132,9 +154,9 @@ export function App() {
   }
 
   useEffect(() => {
-    void refresh(page, query, tagFilter, sort, showArchived);
+    void refresh(page, query, tagFilter, sort, showArchived, tagMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, query, tagFilter, sort, showArchived]);
+  }, [page, query, tagFilter, sort, showArchived, tagMode]);
 
   // Debounce search input: update `query` after SEARCH_DEBOUNCE_MS of inactivity.
   // Reset to page 1 whenever the query changes so results are always from the start.
@@ -523,6 +545,11 @@ export function App() {
         onTagFilterChange={(value) => {
           setPage(1);
           setTagFilter(value);
+        }}
+        tagMode={tagMode}
+        onTagModeChange={(mode) => {
+          setPage(1);
+          setTagMode(mode);
         }}
         sort={sort}
         onSortChange={(s) => {
