@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { Search, Tag, ArrowUpDown, Archive, Trash2 } from 'lucide-react';
-import type { SortOrder, TagMode } from '../api';
+import type { SortOrder, TagMode, TagStat } from '../api';
+import { TagChip } from './TagChip';
 import styles from './FilterBar.module.css';
 
 export interface FilterBarProps {
@@ -17,6 +18,8 @@ export interface FilterBarProps {
   showTrash: boolean;
   onToggleTrash: () => void;
   searchInputRef: RefObject<HTMLInputElement>;
+  /** All tags in use, with their colors — rendered as clickable filter chips. */
+  tags?: TagStat[];
 }
 
 export function FilterBar({
@@ -33,6 +36,7 @@ export function FilterBar({
   showTrash,
   onToggleTrash,
   searchInputRef,
+  tags = [],
 }: FilterBarProps) {
   const isAndMode = tagMode === 'and';
   return (
@@ -126,6 +130,27 @@ export function FilterBar({
           {showTrash ? 'Active notes' : 'Trash'}
         </button>
       </div>
+
+      {/* Clickable tag chips — colored, and toggle the tag filter on click */}
+      {tags.length > 0 && (
+        <div className={styles.tagChips} aria-label="Filter by tag chips">
+          {tags.map(({ tag, color }) => {
+            const active = tagFilter.trim().toLowerCase() === tag.toLowerCase();
+            return (
+              <button
+                key={tag}
+                type="button"
+                aria-label={`Filter by tag ${tag}`}
+                aria-pressed={active}
+                className={`${styles.tagChipButton} ${active ? styles.tagChipActive : ''}`}
+                onClick={() => onTagFilterChange(active ? '' : tag)}
+              >
+                <TagChip tag={tag} color={color} />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
