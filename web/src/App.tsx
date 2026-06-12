@@ -14,6 +14,7 @@ import {
   duplicateNote,
   listAttachments,
   listNotes,
+  listTags,
   toggleArchive,
   togglePin,
   updateNote,
@@ -73,6 +74,8 @@ export function App() {
   const [tagFilter, setTagFilter] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const [sort, setSort] = useState<SortOrder>('newest');
+  /** Flat list of existing tag names for the autocomplete suggestion list. */
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   /** noteId → list of attachment metadata (loaded lazily on expand). */
   const [attachments, setAttachments] = useState<Record<string, AttachmentMeta[]>>({});
   /** noteId → true while attachments panel is open. */
@@ -136,6 +139,21 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, query, tagFilter, sort, showArchived]);
 
+  /** Refresh the flat tag list used for autocomplete suggestions. */
+  async function refreshTagSuggestions() {
+    try {
+      const stats = await listTags();
+      setTagSuggestions(stats.map((s) => s.tag));
+    } catch {
+      // Non-fatal: suggestions simply won't update.
+    }
+  }
+
+  // Load tag suggestions on mount.
+  useEffect(() => {
+    void refreshTagSuggestions();
+  }, []);
+
   // Debounce search input: update `query` after SEARCH_DEBOUNCE_MS of inactivity.
   // Reset to page 1 whenever the query changes so results are always from the start.
   // Skip the page reset when onSubmit has already positioned the page itself.
@@ -185,6 +203,7 @@ export function App() {
       setColor('none');
       setError(null);
       addToast('Note created', 'success');
+      void refreshTagSuggestions();
       // Clear both active filters before navigating so the new note is always
       // visible (it may not match the active query or tag filter).
       // pageContainingNote fetches the fully unfiltered list, so clearing both
@@ -544,6 +563,7 @@ export function App() {
         onBodyChange={setBody}
         tagsInput={tagsInput}
         onTagsInputChange={setTagsInput}
+        tagSuggestions={tagSuggestions}
         color={color}
         onColorChange={setColor}
         onSubmit={onSubmit}
