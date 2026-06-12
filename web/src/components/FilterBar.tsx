@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Button } from './Button';
+import { Search, Tag, ArrowUpDown, Archive } from 'lucide-react';
 import type { SortOrder } from '../api';
 import styles from './FilterBar.module.css';
 
@@ -27,48 +27,69 @@ export function FilterBar({
   searchInputRef,
 }: FilterBarProps) {
   return (
-    <div className={styles.filterBar}>
-      <label className={styles.fieldLabel}>
+    <div className={styles.filterBar} role="search" aria-label="Filter and sort notes">
+      {/* Search */}
+      <label className={`${styles.fieldLabel} ${styles.fieldSearch}`}>
         Search
-        <input
-          ref={searchInputRef}
-          className={styles.input}
-          aria-label="Search notes"
-          placeholder="Search notes…"
-          value={searchInput}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
+        <div className={styles.inputWrapper}>
+          <Search size={14} className={styles.inputIcon} aria-hidden="true" />
+          <input
+            ref={searchInputRef}
+            className={styles.inputWithIcon}
+            aria-label="Search notes"
+            placeholder="Search notes…"
+            value={searchInput}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+        </div>
       </label>
-      <label className={styles.fieldLabel}>
+
+      {/* Tag filter */}
+      <label className={`${styles.fieldLabel} ${styles.fieldTag}`}>
         Filter by tag
-        <input
-          className={styles.input}
-          aria-label="Filter by tag"
-          placeholder="Filter by tag…"
-          value={tagFilter}
-          onChange={(e) => onTagFilterChange(e.target.value)}
-        />
+        <div className={styles.inputWrapper}>
+          <Tag size={14} className={styles.inputIcon} aria-hidden="true" />
+          <input
+            className={styles.inputWithIcon}
+            aria-label="Filter by tag"
+            placeholder="Filter by tag…"
+            value={tagFilter}
+            onChange={(e) => onTagFilterChange(e.target.value)}
+          />
+        </div>
       </label>
-      <label className={styles.fieldLabel}>
+
+      {/* Sort */}
+      <label className={`${styles.fieldLabel} ${styles.fieldSort}`}>
         Sort by
-        <select
-          className={styles.input}
-          aria-label="Sort notes"
-          value={sort}
-          onChange={(e) => onSortChange(e.target.value as SortOrder)}
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="title">Title (A–Z)</option>
-        </select>
+        <div className={styles.inputWrapper}>
+          <ArrowUpDown size={14} className={styles.inputIcon} aria-hidden="true" />
+          <select
+            className={`${styles.select} ${styles.inputWithIcon}`}
+            aria-label="Sort notes"
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value as SortOrder)}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">Title (A–Z)</option>
+          </select>
+        </div>
       </label>
-      <Button
-        variant="secondary"
-        aria-label={showArchived ? 'Show active notes' : 'Show archived notes'}
-        onClick={onToggleArchived}
-      >
-        {showArchived ? 'Active notes' : 'Archived notes'}
-      </Button>
+
+      {/* Archive toggle */}
+      <div className={styles.fieldToggle}>
+        <button
+          type="button"
+          className={`${styles.toggleBtn} ${showArchived ? styles.toggleBtnActive : ''}`}
+          aria-label={showArchived ? 'Show active notes' : 'Show archived notes'}
+          aria-pressed={showArchived}
+          onClick={onToggleArchived}
+        >
+          <Archive size={14} aria-hidden="true" />
+          {showArchived ? 'Active notes' : 'Archived notes'}
+        </button>
+      </div>
     </div>
   );
 }
