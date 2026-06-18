@@ -12,6 +12,48 @@
   min-height: 100vh;
 }
 
+/* ── Skip-to-content link ────────────────────────────────────── */
+/*
+ * First focusable element in the DOM. Off-screen until it receives keyboard
+ * focus, then it slides into the top-left corner so sighted keyboard users
+ * can see and activate it.
+ */
+.skipLink {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1100; /* above the sticky header and toasts */
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-surface-border);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+  /* Visually hidden but available to assistive tech and focus order. */
+  transform: translateY(-150%);
+  opacity: 0;
+  transition: var(--transition-transform, transform 0.15s ease);
+}
+
+.skipLink:focus-visible,
+.skipLink:focus {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* The main landmark is programmatically focusable (tabIndex=-1) so the skip
+ * link can move focus to it without leaving a persistent focus ring on a
+ * non-interactive region. */
+.main:focus {
+  outline: none;
+}
+
+.main:focus-visible {
+  outline: none;
+}
+
 /* ── Body row: sidebar + main ────────────────────────────────── */
 
 .body {
