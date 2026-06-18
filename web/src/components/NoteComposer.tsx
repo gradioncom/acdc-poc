@@ -1,9 +1,11 @@
-import type { RefObject, FormEvent } from 'react';
+import { useRef, type RefObject, type FormEvent, type KeyboardEvent } from 'react';
 import { PenLine } from 'lucide-react';
 import { Button } from './Button';
 import { NOTE_COLORS, type NoteColor } from '../api';
 import { countWords, countChars } from '../wordCount';
 import { TagSuggestionsInput } from './TagSuggestionsInput';
+import { MarkdownToolbar, shortcutAction } from './MarkdownToolbar';
+import { applyMarkdown } from '../markdownFormat';
 import styles from './NoteComposer.module.css';
 
 export interface NoteComposerProps {
@@ -44,8 +46,27 @@ export function NoteComposer({
   const words = countWords(body);
   const chars = countChars(body);
 
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
   const formClass = embedded ? styles.formEmbedded : styles.form;
   const groupClass = embedded ? styles.fieldGroup : `${styles.card} ${styles.fieldGroup}`;
+
+  function handleBodyKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    const action = shortcutAction(e);
+    if (!action) return;
+    e.preventDefault();
+    const textarea = e.currentTarget;
+    const result = applyMarkdown(action, {
+      value: textarea.value,
+      selectionStart: textarea.selectionStart,
+      selectionEnd: textarea.selectionEnd,
+    });
+    onBodyChange(result.value);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  }
 
   return (
     <form onSubmit={onSubmit} aria-label="New note" className={formClass}>
@@ -72,12 +93,15 @@ export function NoteComposer({
           <label className={styles.fieldLabel} htmlFor="composer-body">
             Body
           </label>
+          <MarkdownToolbar textareaRef={bodyRef} onChange={onBodyChange} />
           <textarea
             id="composer-body"
+            ref={bodyRef}
             className={styles.textarea}
             value={body}
             placeholder="Write your note…"
             onChange={(e) => onBodyChange(e.target.value)}
+            onKeyDown={handleBodyKeyDown}
             aria-label="Body"
           />
           <p aria-live="polite" className={styles.wordCount}>
