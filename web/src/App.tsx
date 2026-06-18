@@ -158,6 +158,11 @@ export function App() {
   // debounce effect skips its `setPage(1)` reset (onSubmit controls the page
   // directly in that case).
   const skipDebouncePageResetRef = useRef(false);
+  // The search query already committed to `query`. The debounce effect compares
+  // against this so it only resets the page when the search text actually
+  // changed — never on the initial mount run, whose stale timer could otherwise
+  // fire mid-flow and clobber a page set by create/duplicate navigation.
+  const committedSearchRef = useRef(searchInput);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -266,7 +271,13 @@ export function App() {
   // Reset to page 1 whenever the query changes so results are always from the start.
   // Skip the page reset when onSubmit has already positioned the page itself.
   useEffect(() => {
+    // Nothing to commit when the input matches what's already applied (e.g. the
+    // initial mount run, where `query` already equals `searchInput`). Skipping
+    // avoids a stray `setPage(1)` from a late-firing mount timer landing after
+    // create/duplicate navigation has moved the user to another page.
+    if (searchInput === committedSearchRef.current) return;
     const timer = setTimeout(() => {
+      committedSearchRef.current = searchInput;
       if (!skipDebouncePageResetRef.current) {
         setPage(1);
       }
