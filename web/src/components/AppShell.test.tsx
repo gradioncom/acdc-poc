@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AppShell } from './AppShell';
+import { AppShell, MAIN_CONTENT_ID } from './AppShell';
 
 describe('AppShell', () => {
   it('renders the header, sidebar, and main content regions', () => {
@@ -29,5 +29,34 @@ describe('AppShell', () => {
     expect(main).toContainElement(screen.getByText('view body'));
     // The <main> must not carry an inline style (layout is class-driven).
     expect(main).not.toHaveAttribute('style');
+  });
+
+  it('renders a skip link as the first focusable element targeting the main landmark', () => {
+    const { container } = render(
+      <AppShell header={<div>h</div>} sidebar={<div>s</div>}>
+        <p>view body</p>
+      </AppShell>,
+    );
+
+    const skipLink = screen.getByRole('link', { name: /skip to main content/i });
+    // It must point at the main landmark by id.
+    expect(skipLink).toHaveAttribute('href', `#${MAIN_CONTENT_ID}`);
+    expect(screen.getByRole('main')).toHaveAttribute('id', MAIN_CONTENT_ID);
+
+    // It must be the very first focusable element in the DOM so keyboard users
+    // hit it before the header or sidebar.
+    const focusable = container.querySelectorAll<HTMLElement>('a[href], button, [tabindex]');
+    expect(focusable[0]).toBe(skipLink);
+  });
+
+  it('makes the main landmark programmatically focusable so the skip link can move focus to it', () => {
+    render(
+      <AppShell header={<div>h</div>} sidebar={<div>s</div>}>
+        <p>view body</p>
+      </AppShell>,
+    );
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveAttribute('tabindex', '-1');
   });
 });
