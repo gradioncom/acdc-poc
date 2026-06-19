@@ -8,6 +8,7 @@ import {
   type FormEvent,
 } from 'react';
 import {
+  batchNotes,
   createNote,
   deleteAttachment,
   deleteNote,
@@ -45,8 +46,11 @@ import { HeaderBar } from './components/HeaderBar';
 import { Sidebar, type AppView } from './components/Sidebar';
 import { NoteComposer } from './components/NoteComposer';
 import { NoteList } from './components/NoteList';
+import { BulkActionBar } from './components/BulkActionBar';
 import { Pagination } from './components/Pagination';
 import { Button } from './components/Button';
+import { useSelection, selectAllStateFor } from './useSelection';
+import { CheckSquare } from 'lucide-react';
 import styles from './App.module.css';
 
 const PAGE_SIZE = 5;
@@ -166,6 +170,13 @@ export function App() {
   const permanentDeleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   /** noteId → true while a drag is active over that note's dropzone. */
   const [dragOver, setDragOver] = useState<Record<string, boolean>>({});
+
+  /** Whether the list is in multi-select mode (shows per-note checkboxes). */
+  const [selectionMode, setSelectionMode] = useState(false);
+  /** Selected-note ids and the helpers driving the bulk-action bar. */
+  const selection = useSelection();
+  /** True while a bulk (batch) request is in flight — disables the action bar. */
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // True only on the very first load — gates the skeleton so background
   // refreshes after mutations do not flash the whole list.
@@ -731,6 +742,7 @@ export function App() {
     if (next === view) return;
     setPage(1);
     setEditingId(null);
+    selection.clear();
     setView(next);
   }
 
@@ -739,6 +751,52 @@ export function App() {
     void refresh(page, query, tagFilter);
     void refreshTags();
     void refreshTagSuggestions();
+  }
+
+  // ── Bulk selection / actions ──────────────────────────────────────────────
+
+  /** Ids of the notes currently visible on the page (the select-all scope). */
+  const visibleIds = displayedNotes.map((n) => n.id);
+  const selectAllState = selectAllStateFor(visibleIds, selection.isSelected);
+
+  /** Toggle selection mode; leaving it always clears any pending selection. */
+  function onToggleSelectionMode() {
+    setSelectionMode((on) => {
+      if (on) selection.clear();
+      return !on;
+    });
+  }
+
+  /**
+   * Apply a bulk action to the selected notes via the batch API, then refresh
+   * the list, tags, and clear the selection. A partial failure (some ids not
+   * found) surfaces as a non-blocking toast but is not treated as fatal.
+   */
+  async function runBulkAction(
+    action: 'archive' | 'trash' | 'add-tag',
+    label: string,
+    tag?: string,
+  ) {
+    const ids = selection.selectedIds;
+    if (ids.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const result = await batchNotes(ids, action, tag);
+      const ok = result.succeeded.length;
+      if (result.failed.length > 0) {
+        addToast(`${label} ${ok} note(s); ${result.failed.length} could not be updated.`, 'error');
+      } else {
+        addToast(`${label} ${ok} note(s).`, 'success');
+      }
+      selection.clear();
+      await refresh(page);
+      void refreshTags();
+      void refreshTagSuggestions();
+    } catch (e) {
+      notifyError(e, `Failed to ${action.replace('-', ' ')} the selected notes.`);
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   const errorBanner = error && (
@@ -786,6 +844,9 @@ export function App() {
       onDrop={onDrop}
       onDeleteAttachment={onDeleteAttachment}
       newNoteTitleRef={newNoteTitleRef}
+      selectable={selectionMode}
+      isSelected={selection.isSelected}
+      onToggleSelect={selection.toggle}
     />
   );
 
@@ -843,6 +904,33 @@ export function App() {
             }}
             tags={tags}
           />
+
+          {!showTrash && !showEmptyState && (
+            <div className={styles.selectionControls}>
+              <Button
+                variant={selectionMode ? 'primary' : 'secondary'}
+                onClick={onToggleSelectionMode}
+                aria-pressed={selectionMode}
+                aria-label={selectionMode ? 'Exit selection mode' : 'Select notes'}
+              >
+                <CheckSquare size={16} aria-hidden="true" />
+                {selectionMode ? 'Done' : 'Select'}
+              </Button>
+            </div>
+          )}
+
+          {selectionMode && !showTrash && (
+            <BulkActionBar
+              count={selection.count}
+              selectAllState={selectAllState}
+              onToggleSelectAll={() => selection.toggleSelectAll(visibleIds)}
+              onClear={selection.clear}
+              onArchive={() => void runBulkAction('archive', 'Archived')}
+              onTrash={() => void runBulkAction('trash', 'Trashed')}
+              onAddTag={(tag) => void runBulkAction('add-tag', 'Tagged', tag)}
+              busy={bulkBusy}
+            />
+          )}
 
           {noteList}
 

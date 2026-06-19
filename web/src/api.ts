@@ -273,6 +273,76 @@ export async function duplicateNote(id: string): Promise<Note> {
   return toNote(created);
 }
 
+/** Bulk actions accepted by `POST /api/notes/batch`. */
+export const BATCH_ACTIONS = [
+  'archive',
+  'unarchive',
+  'trash',
+  'restore',
+  'add-tag',
+  'remove-tag',
+] as const;
+export type BatchAction = (typeof BATCH_ACTIONS)[number];
+
+/**
+ * Result of a batch request: every id is processed independently, so the
+ * server reports which ids succeeded and which failed (with a reason). A
+ * missing id never aborts the whole batch.
+ */
+export interface BatchResult {
+  action: BatchAction;
+  succeeded: string[];
+  failed: Array<{ id: string; reason: string }>;
+}
+
+function isBatchResult(value: unknown): value is BatchResult {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.action === 'string' &&
+    (BATCH_ACTIONS as readonly string[]).includes(v.action) &&
+    Array.isArray(v.succeeded) &&
+    v.succeeded.every((id) => typeof id === 'string') &&
+    Array.isArray(v.failed) &&
+    v.failed.every(
+      (f) =>
+        !!f &&
+        typeof f === 'object' &&
+        typeof (f as Record<string, unknown>).id === 'string' &&
+        typeof (f as Record<string, unknown>).reason === 'string',
+    )
+  );
+}
+
+/**
+ * Apply one bulk action to many notes at once via `POST /api/notes/batch`.
+ * `tag` is required for the `add-tag` / `remove-tag` actions and rejected by
+ * the server for any other action. Returns the per-id success/failure report.
+ */
+export async function batchNotes(
+  ids: string[],
+  action: BatchAction,
+  tag?: string,
+): Promise<BatchResult> {
+  const body: { ids: string[]; action: BatchAction; tag?: string } = { ids, action };
+  if (tag !== undefined) {
+    body.tag = tag;
+  }
+  const res = await fetch(`${base}/batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    assertNotRateLimited(res);
+    const payload = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error ?? 'failed to apply bulk action');
+  }
+  const result: unknown = await res.json();
+  if (!isBatchResult(result)) throw new Error('invalid batch payload');
+  return result;
+}
+
 export async function togglePin(id: string): Promise<Note> {
   const res = await fetch(`${base}/${id}/pin`, { method: 'PATCH' });
   if (!res.ok) {

@@ -35,6 +35,7 @@ vi.mock('lucide-react', () => {
     ArrowUpDown: IconStub,
     Bold: IconStub,
     CheckCircle2: IconStub,
+    CheckSquare: IconStub,
     ChevronLeft: IconStub,
     ChevronRight: IconStub,
     Copy: IconStub,
