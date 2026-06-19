@@ -539,15 +539,17 @@ export class NoteStore {
    */
   mergeTag(from: string, to: string): number {
     let affected = 0;
-    for (const [id, note] of this.notes.entries()) {
+    for (const note of this.allNotes()) {
       if (!note.tags.includes(from)) continue;
+      // Replace `from` with `to`, then dedupe so a note already carrying both
+      // ends up with a single `to`.
       const newTags = [...new Set(note.tags.map((t) => (t === from ? to : t)))];
-      this.notes.set(id, { ...note, tags: newTags });
+      this.putNote({ ...note, tags: newTags });
       affected++;
     }
     // The source tag disappears, so drop any color it carried; the target keeps
     // its own color.
-    this.tagColors.delete(from);
+    this.stmtDeleteTagColor.run(from);
     return affected;
   }
 
