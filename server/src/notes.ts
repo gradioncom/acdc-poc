@@ -192,9 +192,11 @@ function parseMarkdown(raw: string): { title: string; body: string } | null {
 
   if (index >= lines.length) return null;
 
-  const headingMatch = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(lines[index]);
+  const headingMatch = /^(#{1,6})[ \t]+(.+)$/.exec(lines[index]);
   if (headingMatch) {
-    const title = headingMatch[2].trim();
+    // Strip optional closing '#' markers + surrounding whitespace using disjoint
+    // character classes (no nested/overlapping quantifiers → no ReDoS backtracking).
+    const title = headingMatch[2].replace(/[ \t]+#+[ \t]*$/, '').trim();
     const body = lines
       .slice(index + 1)
       .join('\n')
