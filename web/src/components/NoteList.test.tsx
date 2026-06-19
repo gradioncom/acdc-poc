@@ -125,3 +125,34 @@ describe('NoteList non-list states', () => {
     expect(screen.getByLabelText('Loading notes')).toBeInTheDocument();
   });
 });
+
+describe('NoteList selection plumbing', () => {
+  it('renders a selection checkbox per note and forwards toggles', async () => {
+    const onToggleSelect = vi.fn();
+    render(
+      <NoteList
+        {...makeProps({
+          notes: [makeNote(1), makeNote(2)],
+          selectable: true,
+          isSelected: (id) => id === '1',
+          onToggleSelect,
+        })}
+      />,
+    );
+
+    const checkboxes = screen.getAllByRole('checkbox', { name: /select note/i });
+    expect(checkboxes).toHaveLength(2);
+    // First note is selected per the predicate.
+    expect(checkboxes[0]).toBeChecked();
+    expect(checkboxes[1]).not.toBeChecked();
+
+    const { default: userEvent } = await import('@testing-library/user-event');
+    await userEvent.click(checkboxes[1]);
+    expect(onToggleSelect).toHaveBeenCalledWith('2');
+  });
+
+  it('renders no checkboxes when not selectable', () => {
+    render(<NoteList {...makeProps({ notes: [makeNote(1)] })} />);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+});

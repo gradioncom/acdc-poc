@@ -21,6 +21,18 @@
   border-color: var(--color-text-subtle);
 }
 
+/* ── Selection ────────────────────────────────────────────────── */
+
+.noteCardSelected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.selectCheckbox {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 /* ── Note view (read mode) ────────────────────────────────────── */
 
 .noteHeader {

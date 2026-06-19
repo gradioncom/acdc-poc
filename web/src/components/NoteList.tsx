@@ -7,13 +7,15 @@ import type { Note } from '../api';
 import styles from './NoteList.module.css';
 
 /** All props that NoteList passes through to each NoteCard, plus NoteList-specific props. */
-export type NoteListProps = Omit<NoteCardProps, 'note'> & {
+export type NoteListProps = Omit<NoteCardProps, 'note' | 'selected'> & {
   notes: Note[];
   initialLoading: boolean;
   isFilterActive: boolean;
   showEmptyState: boolean;
   // Empty state CTA
   newNoteTitleRef: RefObject<HTMLInputElement>;
+  /** Predicate resolving whether a given note id is selected (selection mode). */
+  isSelected?: (id: string) => boolean;
 };
 
 /**
@@ -172,6 +174,9 @@ function renderCard(note: Note, props: NoteListProps, rowProps?: NoteCardRowProp
       onDragLeave={props.onDragLeave}
       onDrop={props.onDrop}
       onDeleteAttachment={props.onDeleteAttachment}
+      selectable={props.selectable}
+      selected={props.isSelected?.(note.id) ?? false}
+      onToggleSelect={props.onToggleSelect}
       rowProps={rowProps}
     />
   );

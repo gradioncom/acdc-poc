@@ -61,6 +61,15 @@ export interface NoteCardProps {
   onDrop: (id: string, e: DragEvent<HTMLElement>) => void;
   onDeleteAttachment: (noteId: string, filename: string) => void;
   /**
+   * When true, the card shows a selection checkbox and reflects its selected
+   * state via `aria-selected`. Absent/false outside selection mode.
+   */
+  selectable?: boolean;
+  /** Whether this note is currently selected (only meaningful when selectable). */
+  selected?: boolean;
+  /** Toggle this note's selection. Required whenever `selectable` is true. */
+  onToggleSelect?: (id: string) => void;
+  /**
    * Optional props applied to the card's root `<li>` when it is rendered inside
    * a virtualized list (absolute positioning, measurement ref, ARIA position).
    * Absent for non-virtualized rendering.
@@ -146,6 +155,9 @@ export function NoteCard({
   onDragLeave,
   onDrop,
   onDeleteAttachment,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
   rowProps,
 }: NoteCardProps) {
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -261,12 +273,23 @@ export function NoteCard({
       className={[
         styles.noteCard,
         n.color === 'none' ? '' : styles[`card-${n.color}` as keyof typeof styles],
+        selectable && selected ? styles.noteCardSelected : '',
       ].join(' ')}
       data-color={n.color}
+      {...(selectable ? { 'aria-selected': selected } : {})}
       {...rowProps}
     >
-      {/* ── Card header: title + pinned badge ── */}
+      {/* ── Card header: selection checkbox + title + pinned badge ── */}
       <div className={styles.noteHeader}>
+        {selectable && (
+          <input
+            type="checkbox"
+            className={styles.selectCheckbox}
+            checked={selected}
+            onChange={() => onToggleSelect?.(n.id)}
+            aria-label={`Select ${n.title}`}
+          />
+        )}
         <h3 className={styles.noteTitle}>{n.title}</h3>
         {n.pinned && (
           <span aria-label="Pinned" className={styles.pinnedBadge}>
