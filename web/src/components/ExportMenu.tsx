@@ -5,9 +5,9 @@ import styles from './ExportMenu.module.css';
 
 export interface ExportMenuProps {
   /** Whether any notes are available to export. Disables the trigger when false. */
-  disabled?: boolean;
+  readonly disabled?: boolean;
   /** Invoked with the chosen format when the user picks an export option. */
-  onExport: (format: ExportFormat) => void;
+  readonly onExport: (format: ExportFormat) => void;
 }
 
 const OPTIONS: ReadonlyArray<{ format: ExportFormat; label: string }> = [

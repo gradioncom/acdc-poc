@@ -32,14 +32,21 @@ function noteToMarkdown(note: Note): string {
   const lines: string[] = [`# ${title}`];
 
   if (note.tags.length > 0) {
-    lines.push('', `Tags: ${note.tags.map((t) => `#${t}`).join(' ')}`);
+    const tagList = note.tags.map((t) => '#' + t).join(' ');
+    lines.push('', `Tags: ${tagList}`);
   }
 
   // Body is already user-authored Markdown; emit it verbatim under the title.
   lines.push('', note.body);
 
   // Collapse to a single trailing newline so files are tidy and stable.
-  return `${lines.join('\n').replace(/\s+$/, '')}\n`;
+  // Strip trailing whitespace one character at a time to avoid backtracking.
+  const joined = lines.join('\n');
+  let end = joined.length;
+  while (end > 0 && /\s/.test(joined[end - 1])) {
+    end -= 1;
+  }
+  return `${joined.slice(0, end)}\n`;
 }
 
 /**
